@@ -5,13 +5,13 @@ import (
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/txsvc/stdlib/v2/env"
+	"github.com/txsvc/stdlib/v2"
 )
 
 func StartPrometheusListener() {
 	// prometheus endpoint setup
-	promHost := env.GetString("prom_host", "0.0.0.0:2112")
-	promMetricsPath := env.GetString("prom_metrics_path", "/metrics")
+	promHost := stdlib.GetString("prom_host", "0.0.0.0:2112")
+	promMetricsPath := stdlib.GetString("prom_metrics_path", "/metrics")
 
 	// start the metrics listener
 	go func() {

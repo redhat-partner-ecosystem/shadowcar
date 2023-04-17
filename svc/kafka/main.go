@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/txsvc/stdlib/v2/env"
+	"github.com/txsvc/stdlib/v2"
 
 	"github.com/redhat-partner-ecosystem/shadowcar/internal"
 )
@@ -21,16 +21,16 @@ var (
 
 func init() {
 
-	clientID := env.GetString("client_id", "simulator")
-	groupID := env.GetString("group_id", "shadowcar")
-	autoOffset := env.GetString("auto_offset", "end") // smallest, earliest, beginning, largest, latest, end
+	clientID := stdlib.GetString("client_id", "simulator")
+	groupID := stdlib.GetString("group_id", "shadowcar")
+	autoOffset := stdlib.GetString("auto_offset", "end") // smallest, earliest, beginning, largest, latest, end
 
 	// kafka setup
-	kafkaService := env.GetString("kafka_service", "")
+	kafkaService := stdlib.GetString("kafka_service", "")
 	if kafkaService == "" {
 		panic(fmt.Errorf("missing env 'kafka_service'"))
 	}
-	kafkaServicePort := env.GetString("kafka_service_port", "9092")
+	kafkaServicePort := stdlib.GetString("kafka_service_port", "9092")
 	kafkaServer := fmt.Sprintf("%s:%s", kafkaService, kafkaServicePort)
 
 	// https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
@@ -62,7 +62,7 @@ func init() {
 }
 
 func main() {
-	sourceTopic := env.GetString("source_topic", "")
+	sourceTopic := stdlib.GetString("source_topic", "")
 
 	// metrics collectors
 	opsTxProcessed := promauto.NewCounter(prometheus.CounterOpts{
