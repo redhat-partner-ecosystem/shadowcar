@@ -1,0 +1,52 @@
+kind: DeploymentConfig
+apiVersion: apps.openshift.io/v1
+metadata:
+  name: kafka-listener-svc
+  namespace: shadowcar
+  labels:
+    svc: kafka-listener-svc
+    app-owner: shadowcar
+    app.openshift.io/runtime: golang
+    group: integration-svc
+    collect_metrics: "true"
+spec:
+  selector:
+    svc: kafka-listener-svc
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        svc: kafka-listener-svc
+        app-owner: shadowcar
+        group: integration-svc
+        collect_metrics: "true"
+    spec:
+      containers:
+        - name: kafka-listener-svc
+          image: >-
+            image-registry.openshift-image-registry.svc:5000/buildspace/kafka-listener-svc:latest
+          imagePullPolicy: Always
+          env:
+            - name: source_topic
+              valueFrom:
+                configMapKeyRef:
+                  name: kafka-listener-svc-config
+                  key: source_topic
+            - name: kafka_service
+              valueFrom:
+                configMapKeyRef:
+                  name: kafka-listener-svc-config
+                  key: kafka_service
+            #- name: kafka_service_port
+            #  value: '9092'
+            - name: client_id
+              valueFrom:
+                configMapKeyRef:
+                  name: kafka-listener-svc-config
+                  key: client_id
+            - name: group_id
+              valueFrom:
+                configMapKeyRef:
+                  name: kafka-listener-svc-config
+                  key: group_id
+

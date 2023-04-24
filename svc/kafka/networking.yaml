@@ -1,0 +1,16 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: metrics-kafka-listener-svc
+  namespace: shadowcar
+  labels:
+    app-owner: shadowcar
+spec:
+  ports:
+    - protocol: TCP
+      port: 2112
+      targetPort: 2112
+      name: metrics
+  selector:
+    svc: kafka-listener-svc
+  type: ClusterIP
