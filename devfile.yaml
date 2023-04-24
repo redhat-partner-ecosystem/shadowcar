@@ -21,14 +21,7 @@ commands:
   - id: build
     exec:
       component: tools
-      workingDir: ${PROJECTS_ROOT}/shadowcar/svc/simulator
+      workingDir: ${PROJECTS_ROOT}/shadowcar
       commandLine: go build
       group:
         kind: build
-  - id: run
-    exec:
-      component: tools
-      workingDir: ${PROJECTS_ROOT}/shadowcar/svc/simulator
-      commandLine: ./simulator
-      group:
-        kind: run

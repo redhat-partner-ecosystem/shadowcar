@@ -1,6 +1,12 @@
 package drogue
 
 type (
+	Token struct {
+		Prefix            string `json:"prefix,omitempty"` // The name of the application the resource is scoped to
+		Description       string `json:"description"`
+		CreationTimestamp string `json:"created,omitempty"`
+	}
+
 	Device struct {
 		Metadata *ScopedMetadata `json:"metadata"`
 		Spec     *DeviceSpec     `json:"spec,omitempty"`
@@ -59,4 +65,5 @@ type (
 	}
 
 	Devices []Device
+	Tokens  []Token
 )

@@ -2,16 +2,16 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/txsvc/stdlib/v2"
-
-	"github.com/redhat-partner-ecosystem/shadowcar/internal"
 )
 
 var (
@@ -21,8 +21,8 @@ var (
 
 func init() {
 
-	clientID := stdlib.GetString("client_id", "simulator")
-	groupID := stdlib.GetString("group_id", "shadowcar")
+	clientID := stdlib.GetString("client_id", "kafka-listener-svc")
+	groupID := stdlib.GetString("group_id", "kafka-listener")
 	autoOffset := stdlib.GetString("auto_offset", "end") // smallest, earliest, beginning, largest, latest, end
 
 	// kafka setup
@@ -58,10 +58,12 @@ func init() {
 	*/
 
 	// prometheus endpoint setup
-	internal.StartPrometheusListener()
+	startPrometheusListener()
 }
 
 func main() {
+
+	clientID := stdlib.GetString("client_id", "kafka-listener-svc")
 	sourceTopic := stdlib.GetString("source_topic", "")
 
 	// metrics collectors
@@ -73,7 +75,7 @@ func main() {
 	// create a responder for delivery notifications
 	evts := make(chan kafka.Event, 1000) // FIXME not sure if such a number is needed ...
 	go func() {
-		fmt.Println(" --> waiting for events")
+		fmt.Printf(" --> %s: listening for events\n", clientID)
 		for {
 			e := <-evts
 
@@ -92,7 +94,7 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Printf(" --> listening on topic(s) '%s'\n", sourceTopic)
+	fmt.Printf(" --> %s: listening on topic(s) '%s'\n", clientID, sourceTopic)
 
 	for {
 		msg, err := kc.ReadMessage(-1)
@@ -128,4 +130,18 @@ func main() {
 			fmt.Printf(" --> consumer error: %v (%v)\n", err, msg)
 		}
 	}
+}
+
+func startPrometheusListener() {
+	// prometheus endpoint setup
+	promHost := stdlib.GetString("prom_host", "0.0.0.0:2112")
+	promMetricsPath := stdlib.GetString("prom_metrics_path", "/metrics")
+
+	// start the metrics listener
+	go func() {
+		fmt.Printf(" --> starting metrics endpoint '%s' on '%s'\n", promMetricsPath, promHost)
+
+		http.Handle(promMetricsPath, promhttp.Handler())
+		http.ListenAndServe(promHost, nil)
+	}()
 }

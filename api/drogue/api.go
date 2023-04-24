@@ -28,16 +28,21 @@ type (
 	}
 )
 
-func NewClient(logger logger.Logger) *Client {
+func NewClient(logger logger.Logger) (*Client, error) {
 
 	httpClient := internal.NewTransport(logger, http.DefaultTransport)
 	ds := &settings.DialSettings{
-		Endpoint:  stdlib.GetString(DrogueHttpEndpoint, ""),
-		UserAgent: DrogueApiAgent,
-		Credentials: &settings.Credentials{
-			UserID: "",
-			Token:  stdlib.GetString(DrogueAccessToken, ""),
-		},
+		Endpoint:    stdlib.GetString(DrogueHttpEndpoint, ""),
+		UserAgent:   DrogueApiAgent,
+		Credentials: credentials(),
+	}
+
+	if ds.Endpoint == "" {
+		return nil, fmt.Errorf("missing DROGUE_HTTP_ENDPOINT")
+	}
+
+	if ds.Credentials.UserID != "" && ds.Credentials.Token == "" {
+		return nil, fmt.Errorf("missing DROGUE_CLIENT_SECRET")
 	}
 
 	return &Client{
@@ -47,7 +52,30 @@ func NewClient(logger logger.Logger) *Client {
 			Logger:     logger,
 			Trace:      stdlib.GetString(config.ForceTraceENV, ""),
 		},
+	}, nil
+}
+
+func credentials() *settings.Credentials {
+	c := &settings.Credentials{
+		Token: stdlib.GetString(DrogueAccessToken, ""),
 	}
+	if c.Token == "" {
+		c.UserID = stdlib.GetString(DrogueClientID, "")
+		c.Token = stdlib.GetString(DrogueClientSecret, "")
+
+	}
+	return c
+}
+
+func (c *Client) GetAccessToken() (int, Tokens) {
+	var resp Tokens
+
+	status, _ := c.rc.GET("/api/tokens/v1alpha1", &resp)
+	if status != http.StatusOK {
+		return status, nil
+	}
+
+	return status, resp
 }
 
 func (c *Client) GetAllDevices(application string) (int, Devices) {
@@ -127,8 +155,6 @@ func (c *Client) RegisterDevice(application, name, user, password string) (int, 
 }
 
 func (c *Client) DeleteDevice(application, name string) int {
-	//var resp Device
-
 	status, _ := c.rc.DELETE(fmt.Sprintf("/api/registry/v1alpha1/apps/%s/devices/%s", application, name), nil, nil)
 	return status
 }

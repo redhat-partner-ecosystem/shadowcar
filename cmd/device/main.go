@@ -21,7 +21,10 @@ func main() {
 	flag.StringVar(&deviceName, "name", "foo-device", "Device name")
 	flag.StringVar(&devicePassword, "password", "car123456", "Device password")
 
-	cl := drogue.NewClient(logger.NewLogger(os.Stdout, "debug"))
+	cl, err := drogue.NewClient(logger.NewLogger(os.Stdout, "debug"))
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	device := drogue.Device{
 		Metadata: &drogue.ScopedMetadata{

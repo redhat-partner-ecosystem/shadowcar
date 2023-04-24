@@ -5,12 +5,11 @@ go 1.19
 require (
 	github.com/PuerkitoBio/rehttp v1.1.0
 	github.com/confluentinc/confluent-kafka-go v1.9.2
-	github.com/eclipse/paho.golang v0.11.0
 	github.com/eclipse/paho.mqtt.golang v1.4.2
 	github.com/prometheus/client_golang v1.14.0
+	github.com/rs/zerolog v1.29.0
 	github.com/stretchr/testify v1.8.1
 	github.com/txsvc/apikit v0.2.2
-	github.com/txsvc/goreq v1.0.1
 	github.com/txsvc/stdlib/v2 v2.4.0
 )
 

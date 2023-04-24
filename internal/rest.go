@@ -131,7 +131,10 @@ func (c *RestClient) roundTrip(req *http.Request, response interface{}) (int, er
 
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("User-Agent", c.Settings.UserAgent) // FIXME port this to apikit
-	if c.Settings.Credentials.Token != "" {
+
+	if c.Settings.Credentials.UserID != "" && c.Settings.Credentials.Token != "" {
+		req.SetBasicAuth(c.Settings.Credentials.UserID, c.Settings.Credentials.Token)
+	} else if c.Settings.Credentials.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Settings.Credentials.Token)
 	}
 	if c.Trace != "" {

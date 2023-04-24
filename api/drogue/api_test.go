@@ -1,7 +1,6 @@
 package drogue
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"testing"
@@ -20,8 +19,9 @@ const (
 
 func TestNewClient(t *testing.T) {
 
-	cl := NewClient(logger.NewLogger(os.Stdout, "debug"))
+	cl, err := NewClient(logger.NewLogger(os.Stdout, "debug"))
 	assert.NotNil(t, cl)
+	assert.NoError(t, err)
 
 	assert.NotNil(t, cl.rc.HttpClient)
 	assert.NotNil(t, cl.rc.Settings)
@@ -33,9 +33,22 @@ func TestNewClient(t *testing.T) {
 	assert.NotEmpty(t, cl.rc.Settings.Credentials.Token)
 }
 
-func _TestGetAllDevices(t *testing.T) {
+func TestGetAccessToken(t *testing.T) {
 
-	cl := NewClient(logger.NewLogger(os.Stdout, "debug"))
+	cl, _ := NewClient(logger.NewLogger(os.Stdout, "debug"))
+	assert.NotNil(t, cl)
+
+	status, resp := cl.GetAccessToken()
+	assert.NotNil(t, resp)
+	assert.NotEmpty(t, resp)
+	assert.Equal(t, http.StatusOK, status)
+
+	//fmt.Println(resp)
+}
+
+func TestGetAllDevices(t *testing.T) {
+
+	cl, _ := NewClient(logger.NewLogger(os.Stdout, "debug"))
 	assert.NotNil(t, cl)
 
 	status, resp := cl.GetAllDevices(application)
@@ -43,11 +56,11 @@ func _TestGetAllDevices(t *testing.T) {
 	assert.NotEmpty(t, resp)
 	assert.Equal(t, http.StatusOK, status)
 
-	fmt.Println(resp)
+	//fmt.Println(resp)
 }
 
-func _TestGetDevice(t *testing.T) {
-	cl := NewClient(logger.NewLogger(os.Stdout, "debug"))
+func TestGetDevice(t *testing.T) {
+	cl, _ := NewClient(logger.NewLogger(os.Stdout, "debug"))
 	assert.NotNil(t, cl)
 
 	status, devices := cl.GetAllDevices(application)
@@ -61,12 +74,12 @@ func _TestGetDevice(t *testing.T) {
 		assert.NotEmpty(t, resp)
 		assert.Equal(t, http.StatusOK, status)
 
-		fmt.Println(resp)
+		//fmt.Println(resp)
 	}
 }
 
-func _TestCreateDevice(t *testing.T) {
-	cl := NewClient(logger.NewLogger(os.Stdout, "debug"))
+func TestCreateDevice(t *testing.T) {
+	cl, _ := NewClient(logger.NewLogger(os.Stdout, "debug"))
 	assert.NotNil(t, cl)
 
 	device := Device{
@@ -91,8 +104,8 @@ func _TestCreateDevice(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, status)
 }
 
-func _TestRegisterAndDeleteDevice(t *testing.T) {
-	cl := NewClient(logger.NewLogger(os.Stdout, "debug"))
+func TestRegisterAndDeleteDevice(t *testing.T) {
+	cl, _ := NewClient(logger.NewLogger(os.Stdout, "debug"))
 	assert.NotNil(t, cl)
 
 	// create the device
@@ -115,7 +128,7 @@ func _TestRegisterAndDeleteDevice(t *testing.T) {
 }
 
 func TestRegisterDevicePass(t *testing.T) {
-	cl := NewClient(logger.NewLogger(os.Stdout, "debug"))
+	cl, _ := NewClient(logger.NewLogger(os.Stdout, "debug"))
 	assert.NotNil(t, cl)
 
 	// create the device with pass phrase
@@ -129,12 +142,12 @@ func TestRegisterDevicePass(t *testing.T) {
 	}
 
 	// delete the device
-	//status = cl.DeleteDevice(application, deviceName)
-	//assert.Equal(t, http.StatusNoContent, status)
+	status = cl.DeleteDevice(application, deviceName)
+	assert.Equal(t, http.StatusNoContent, status)
 }
 
-func _TestRegisterDeviceUser(t *testing.T) {
-	cl := NewClient(logger.NewLogger(os.Stdout, "debug"))
+func TestRegisterDeviceUser(t *testing.T) {
+	cl, _ := NewClient(logger.NewLogger(os.Stdout, "debug"))
 	assert.NotNil(t, cl)
 
 	// create the device with pass phrase
