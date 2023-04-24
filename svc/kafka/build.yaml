@@ -5,6 +5,7 @@ items:
     apiVersion: build.openshift.io/v1
     metadata:
       name: kafka-listener-svc
+      namespace: buildspace
       labels:
         app: shadowcar
         app-owner: shadowcar
@@ -43,6 +44,7 @@ items:
     apiVersion: image.openshift.io/v1
     metadata:
       name: kafka-listener-svc
+      namespace: buildspace
       labels:
         svc: kafka-listener-svc
         app: shadowcar
