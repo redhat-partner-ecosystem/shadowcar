@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: kafka-listener-svc-config
 data:
-  source_topic: bobbycar-gps
+  source_topic: events-bobbycar
   client_id: kafka-listener-svc
   group_id: kafka-listener-svc
   kafka_service: 'bobbycar-cluster-kafka-bootstrap.bobbycar.svc.cluster.local'
