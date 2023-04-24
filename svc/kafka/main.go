@@ -10,8 +10,22 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/txsvc/stdlib/v2"
+)
+
+const (
+	// expected ENV variables
+	CLIENT_ID          = "client_id"
+	GROUP_ID           = "group_id"
+	SOURCE_TOPIC       = "source_topic"
+	KAFKA_SERVICE      = "kafka_service"
+	KAFKA_SERVICE_PORT = "kafka_service_port"
+	KAFKA_AUTO_OFFSET  = "auto_offset"
+
+	debug = true // log all messages & events
 )
 
 var (
@@ -20,17 +34,23 @@ var (
 )
 
 func init() {
+	// zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	if debug {
+		zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
 
-	clientID := stdlib.GetString("client_id", "kafka-listener-svc")
-	groupID := stdlib.GetString("group_id", "kafka-listener")
-	autoOffset := stdlib.GetString("auto_offset", "end") // smallest, earliest, beginning, largest, latest, end
+	clientID := stdlib.GetString(CLIENT_ID, "kafka-listener-svc")
+	groupID := stdlib.GetString(GROUP_ID, "kafka-listener")
+	autoOffset := stdlib.GetString(KAFKA_AUTO_OFFSET, "end") // smallest, earliest, beginning, largest, latest, end
 
 	// kafka setup
-	kafkaService := stdlib.GetString("kafka_service", "")
+	kafkaService := stdlib.GetString(KAFKA_SERVICE, "")
 	if kafkaService == "" {
-		panic(fmt.Errorf("missing env 'kafka_service'"))
+		panic(fmt.Errorf("missing env KAFKA_SERVICE"))
 	}
-	kafkaServicePort := stdlib.GetString("kafka_service_port", "9092")
+	kafkaServicePort := stdlib.GetString(KAFKA_SERVICE_PORT, "9092")
 	kafkaServer := fmt.Sprintf("%s:%s", kafkaService, kafkaServicePort)
 
 	// https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
@@ -43,7 +63,7 @@ func init() {
 		"broker.address.family":   "v4",
 	})
 	if err != nil {
-		panic(err)
+		log.Fatal().Err(err).Msg(err.Error())
 	}
 	kc = _kc
 
@@ -82,7 +102,8 @@ func main() {
 			switch ev := e.(type) {
 			case *kafka.Message:
 				if ev.TopicPartition.Error != nil {
-					fmt.Printf(" --> delivery error: %v\n", ev.TopicPartition)
+					log.Error().Err(ev.TopicPartition.Error).Msg("error")
+					//fmt.Printf(" --> delivery error: %v\n", ev.TopicPartition)
 				}
 			}
 		}
@@ -127,7 +148,7 @@ func main() {
 
 		} else {
 			// The client will automatically try to recover from all errors.
-			fmt.Printf(" --> consumer error: %v (%v)\n", err, msg)
+			log.Error().Err(err).Msg("error")
 		}
 	}
 }

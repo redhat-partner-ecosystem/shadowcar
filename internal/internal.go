@@ -2,6 +2,8 @@ package internal
 
 import (
 	"math"
+	"os"
+	"strings"
 	"time"
 
 	"fmt"
@@ -40,4 +42,18 @@ func Duration(d time.Duration, dicimal int) time.Duration {
 		}
 	}
 	return d
+}
+
+// FIXME move this to stdlib
+func GetBool(env string, def bool) bool {
+	e, ok := os.LookupEnv(env)
+	if !ok {
+		return def
+	}
+
+	e = strings.ToLower(e)
+	if e == "true" || e == "yes" || e == "1" {
+		return true
+	}
+	return false
 }
