@@ -189,3 +189,32 @@ func TestRegisterDeviceUser(t *testing.T) {
 	status = cl.DeleteDevice(application, deviceName)
 	assert.Equal(t, http.StatusNoContent, status)
 }
+
+func TestRegisterAndUpdateDevice(t *testing.T) {
+	cl, _ := NewDrogueClient(context.TODO())
+	assert.NotNil(t, cl)
+
+	status, device := cl.GetDevice(application, deviceName)
+	if status != http.StatusOK {
+		// create the device
+		status, device = cl.RegisterDevice(application, deviceName, "", "")
+		assert.Equal(t, http.StatusCreated, status)
+	}
+	assert.NotNil(t, device)
+	assert.NotEmpty(t, device)
+
+	// update with some random values
+	device.SetLabel("label1", "foo")
+	device.SetLabel("label2", "bar")
+	device.SetAnnotation("annotation1", "AA")
+	device.SetAnnotation("annotation2", "BB")
+
+	status, newDevice := cl.UpdateDevice(application, &device, true)
+	assert.Equal(t, http.StatusNoContent, status)
+	assert.NotNil(t, newDevice)
+	assert.NotEmpty(t, newDevice)
+
+	// delete the device
+	status = cl.DeleteDevice(application, deviceName)
+	assert.Equal(t, http.StatusNoContent, status)
+}

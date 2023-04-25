@@ -148,14 +148,22 @@ func (c *DrogueClient) RegisterDevice(application, name, user, password string) 
 		}
 	}
 
-	status, _ := c.rc.POST(fmt.Sprintf("/api/registry/v1alpha1/apps/%s/devices", application), &req, nil)
-	if status != http.StatusCreated {
+	return c.CreateDevice(application, &req)
+}
+
+func (c *DrogueClient) UpdateDevice(application string, device *Device, refresh bool) (int, Device) {
+	status, _ := c.rc.PUT(fmt.Sprintf("/api/registry/v1alpha1/apps/%s/devices/%s", application, device.Metadata.Name), device, nil)
+	if status != http.StatusNoContent {
 		return status, Device{}
 	}
 
-	status, device := c.GetDevice(application, name)
+	if !refresh {
+		return http.StatusNoContent, Device{}
+	}
+
+	status, newDevice := c.GetDevice(application, device.Metadata.Name)
 	if status == http.StatusOK {
-		return http.StatusCreated, device
+		return http.StatusNoContent, newDevice
 	}
 
 	return status, Device{}

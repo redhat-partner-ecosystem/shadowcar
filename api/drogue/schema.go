@@ -14,16 +14,16 @@ type (
 	}
 
 	ScopedMetadata struct {
-		Application       string   `json:"application,omitempty"` // The name of the application the resource is scoped to
-		Name              string   `json:"name"`
-		UID               string   `json:"uid,omitempty"`
-		CreationTimestamp string   `json:"creationTimestamp,omitempty"`
-		DeletionTimestamp string   `json:"deletionTimestamp,omitempty"`
-		Generation        int      `json:"generation,omitempty"`
-		ResourceVersion   string   `json:"resourceVersion,omitempty"`
-		Finalizers        []string `json:"finalizers,omitempty"`
-		// Annotations
-		// Labels
+		Application       string            `json:"application,omitempty"` // The name of the application the resource is scoped to
+		Name              string            `json:"name"`
+		UID               string            `json:"uid,omitempty"`
+		CreationTimestamp string            `json:"creationTimestamp,omitempty"`
+		DeletionTimestamp string            `json:"deletionTimestamp,omitempty"`
+		Generation        int               `json:"generation,omitempty"`
+		ResourceVersion   string            `json:"resourceVersion,omitempty"`
+		Finalizers        []string          `json:"finalizers,omitempty"`
+		Annotations       map[string]string `json:"annotations,omitempty"`
+		Labels            map[string]string `json:"labels,omitempty"`
 	}
 
 	DeviceSpec struct {
@@ -67,3 +67,31 @@ type (
 	Devices []Device
 	Tokens  []Token
 )
+
+func (d *Device) SetLabel(k, v string) {
+	if d.Metadata == nil {
+		d.Metadata = &ScopedMetadata{}
+	}
+	d.Metadata.SetLabel(k, v)
+}
+
+func (d *Device) SetAnnotation(k, v string) {
+	if d.Metadata == nil {
+		d.Metadata = &ScopedMetadata{}
+	}
+	d.Metadata.SetAnnotation(k, v)
+}
+
+func (m *ScopedMetadata) SetLabel(k, v string) {
+	if m.Labels == nil {
+		m.Labels = make(map[string]string)
+	}
+	m.Labels[k] = v
+}
+
+func (m *ScopedMetadata) SetAnnotation(k, v string) {
+	if m.Annotations == nil {
+		m.Annotations = make(map[string]string)
+	}
+	m.Annotations[k] = v
+}
