@@ -1,15 +1,15 @@
 package drogue
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
 	"github.com/txsvc/apikit/config"
-	"github.com/txsvc/apikit/logger"
-	"github.com/txsvc/apikit/settings"
 	"github.com/txsvc/stdlib/v2"
 
 	"github.com/redhat-partner-ecosystem/shadowcar/internal"
+	"github.com/redhat-partner-ecosystem/shadowcar/internal/settings"
 )
 
 const (
@@ -23,20 +23,28 @@ const (
 )
 
 type (
-	Client struct {
+	DrogueClient struct {
 		rc internal.RestClient
 	}
 )
 
-func NewClient(logger logger.Logger) (*Client, error) {
+func NewDrogueClient(ctx context.Context, opts ...internal.ClientOption) (*DrogueClient, error) {
 
-	httpClient := internal.NewTransport(logger, http.DefaultTransport)
+	httpClient := internal.NewLoggingTransport(http.DefaultTransport)
 	ds := &settings.DialSettings{
 		Endpoint:    stdlib.GetString(DrogueHttpEndpoint, ""),
 		UserAgent:   DrogueApiAgent,
 		Credentials: credentials(),
 	}
 
+	// apply options
+	if len(opts) > 0 {
+		for _, opt := range opts {
+			opt.Apply(ds)
+		}
+	}
+
+	// do some basic validation
 	if ds.Endpoint == "" {
 		return nil, fmt.Errorf("missing DROGUE_HTTP_ENDPOINT")
 	}
@@ -45,11 +53,10 @@ func NewClient(logger logger.Logger) (*Client, error) {
 		return nil, fmt.Errorf("missing DROGUE_CLIENT_SECRET")
 	}
 
-	return &Client{
+	return &DrogueClient{
 		rc: internal.RestClient{
 			HttpClient: httpClient,
 			Settings:   ds,
-			Logger:     logger,
 			Trace:      stdlib.GetString(config.ForceTraceENV, ""),
 		},
 	}, nil
@@ -67,7 +74,7 @@ func credentials() *settings.Credentials {
 	return c
 }
 
-func (c *Client) GetAccessToken() (int, Tokens) {
+func (c *DrogueClient) GetAccessToken() (int, Tokens) {
 	var resp Tokens
 
 	status, _ := c.rc.GET("/api/tokens/v1alpha1", &resp)
@@ -78,7 +85,7 @@ func (c *Client) GetAccessToken() (int, Tokens) {
 	return status, resp
 }
 
-func (c *Client) GetAllDevices(application string) (int, Devices) {
+func (c *DrogueClient) GetAllDevices(application string) (int, Devices) {
 	var resp Devices
 
 	status, _ := c.rc.GET(fmt.Sprintf("/api/registry/v1alpha1/apps/%s/devices", application), &resp)
@@ -89,7 +96,7 @@ func (c *Client) GetAllDevices(application string) (int, Devices) {
 	return status, resp
 }
 
-func (c *Client) GetDevice(application, name string) (int, Device) {
+func (c *DrogueClient) GetDevice(application, name string) (int, Device) {
 	var resp Device
 
 	status, _ := c.rc.GET(fmt.Sprintf("/api/registry/v1alpha1/apps/%s/devices/%s", application, name), &resp)
@@ -99,7 +106,7 @@ func (c *Client) GetDevice(application, name string) (int, Device) {
 	return status, resp
 }
 
-func (c *Client) CreateDevice(application string, device *Device) (int, Device) {
+func (c *DrogueClient) CreateDevice(application string, device *Device) (int, Device) {
 	status, _ := c.rc.POST(fmt.Sprintf("/api/registry/v1alpha1/apps/%s/devices", application), device, nil)
 	if status != http.StatusCreated {
 		return status, Device{}
@@ -113,7 +120,7 @@ func (c *Client) CreateDevice(application string, device *Device) (int, Device) 
 	return status, Device{}
 }
 
-func (c *Client) RegisterDevice(application, name, user, password string) (int, Device) {
+func (c *DrogueClient) RegisterDevice(application, name, user, password string) (int, Device) {
 	req := Device{
 		Metadata: &ScopedMetadata{
 			Name:        name,
@@ -154,7 +161,7 @@ func (c *Client) RegisterDevice(application, name, user, password string) (int, 
 	return status, Device{}
 }
 
-func (c *Client) DeleteDevice(application, name string) int {
+func (c *DrogueClient) DeleteDevice(application, name string) int {
 	status, _ := c.rc.DELETE(fmt.Sprintf("/api/registry/v1alpha1/apps/%s/devices/%s", application, name), nil, nil)
 	return status
 }

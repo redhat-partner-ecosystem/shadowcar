@@ -14,14 +14,14 @@ type (
 	}
 
 	ScopedMetadata struct {
-		Application       string `json:"application,omitempty"` // The name of the application the resource is scoped to
-		Name              string `json:"name"`
-		UID               string `json:"uid,omitempty"`
-		CreationTimestamp string `json:"creationTimestamp,omitempty"`
-		DeletionTimestamp string `json:"deletionTimestamp,omitempty"`
-		Generation        int    `json:"generation,omitempty"`
-		ResourceVersion   string `json:"resourceVersion,omitempty"`
-		// Finalizers
+		Application       string   `json:"application,omitempty"` // The name of the application the resource is scoped to
+		Name              string   `json:"name"`
+		UID               string   `json:"uid,omitempty"`
+		CreationTimestamp string   `json:"creationTimestamp,omitempty"`
+		DeletionTimestamp string   `json:"deletionTimestamp,omitempty"`
+		Generation        int      `json:"generation,omitempty"`
+		ResourceVersion   string   `json:"resourceVersion,omitempty"`
+		Finalizers        []string `json:"finalizers,omitempty"`
 		// Annotations
 		// Labels
 	}

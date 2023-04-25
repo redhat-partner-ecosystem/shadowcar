@@ -11,12 +11,9 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
+	"github.com/rs/zerolog/log"
 
-	"github.com/txsvc/apikit/config"
-	"github.com/txsvc/apikit/logger"
-	"github.com/txsvc/apikit/settings"
-
-	"github.com/txsvc/stdlib/v2"
+	"github.com/redhat-partner-ecosystem/shadowcar/internal/settings"
 )
 
 const (
@@ -24,37 +21,16 @@ const (
 	MsgStatus = "%s. status: %d"
 )
 
-var (
-	// ErrMissingCredentials indicates that a credentials are is missing
-	ErrMissingCredentials = errors.New("missing credentials")
-
-	// ErrApiInvocationError indicates an error in an API call
-	ErrApiInvocationError = errors.New("api invocation error")
-
-	contextKeyRequestStart = &contextKey{"RequestStart"}
-)
-
 // RestClient - API client encapsulating the http client
 type (
-	// StatusObject is used to report operation status and errors in an API request.
-	// The struct can be used as a response object or be treated as an error object
-	StatusObject struct {
-		Status       int    `json:"status"`
-		Message      string `json:"message"`
-		ErrorMessage string `json:"error"`
-		RootError    error  `json:"-"`
-	}
-
 	RestClient struct {
 		HttpClient *http.Client
 		Settings   *settings.DialSettings
-		Logger     logger.Logger
 		Trace      string
 	}
 
-	loggingTransport struct {
+	LoggingTransport struct {
 		InnerTransport http.RoundTripper
-		Logger         logger.Logger
 	}
 
 	contextKey struct {
@@ -62,10 +38,18 @@ type (
 	}
 )
 
-func NewRestClient(ds *settings.DialSettings, logger logger.Logger) (*RestClient, error) {
+var (
+	// ErrApiInvocationError indicates an error in an API call
+	ErrApiInvocationError = errors.New("api invocation error")
+
+	ctxKeyRequestStart = &contextKey{"RequestStart"}
+)
+
+/*
+func NewRestClient(ds *settings.DialSettings) *RestClient {
 	var _ds *settings.DialSettings
 
-	httpClient := NewTransport(logger, http.DefaultTransport)
+	httpClient := NewLoggingTransport(http.DefaultTransport)
 
 	// create or clone the settings
 	if ds != nil {
@@ -81,10 +65,10 @@ func NewRestClient(ds *settings.DialSettings, logger logger.Logger) (*RestClient
 	return &RestClient{
 		HttpClient: httpClient,
 		Settings:   _ds,
-		Logger:     logger,
 		Trace:      stdlib.GetString(config.ForceTraceENV, ""),
-	}, nil // FIXME: nothing creates an error here, remove later?
+	}
 }
+*/
 
 // GET is used to request data from the API. No payload, only queries!
 func (c *RestClient) GET(uri string, response interface{}) (int, error) {
@@ -138,8 +122,8 @@ func (c *RestClient) roundTrip(req *http.Request, response interface{}) (int, er
 		req.Header.Set("Authorization", "Bearer "+c.Settings.Credentials.Token)
 	}
 	if c.Trace != "" {
-		req.Header.Set("X-Request-ID", c.Trace)
-		req.Header.Set("X-Force-Trace", c.Trace)
+		req.Header.Set("X-Request-ID", XID())    // e.g ch3oncmfosvp07shov90
+		req.Header.Set("X-Force-Trace", c.Trace) // a predefined value in order to e.g. grep in logs
 	}
 
 	// perform the request
@@ -170,7 +154,7 @@ func (c *RestClient) roundTrip(req *http.Request, response interface{}) (int, er
 	return resp.StatusCode, nil
 }
 
-func NewTransport(logger logger.Logger, transport http.RoundTripper) *http.Client {
+func NewLoggingTransport(transport http.RoundTripper) *http.Client {
 	retryTransport := rehttp.NewTransport(
 		transport,
 		rehttp.RetryAll(
@@ -184,34 +168,38 @@ func NewTransport(logger logger.Logger, transport http.RoundTripper) *http.Clien
 	)
 
 	return &http.Client{
-		Transport: &loggingTransport{
+		Transport: &LoggingTransport{
 			InnerTransport: retryTransport,
-			Logger:         logger,
 		},
 	}
 }
 
-func (t *loggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	ctx := context.WithValue(req.Context(), contextKeyRequestStart, time.Now())
-	req = req.WithContext(ctx)
+// RoundTrip logs the request and reply if the log level is debug or trace
+func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
-	t.logRequest(req)
+	xreqid := XID()
+
+	if log.Debug().Enabled() {
+		req = req.WithContext(context.WithValue(req.Context(), ctxKeyRequestStart, time.Now()))
+		t.logRequest(req, xreqid)
+	}
 
 	resp, err := t.InnerTransport.RoundTrip(req)
 	if err != nil {
 		return resp, err
 	}
 
-	t.logResponse(resp)
+	if log.Debug().Enabled() {
+		t.logResponse(resp, xreqid)
+	}
 
 	return resp, err
 }
 
-func (t *loggingTransport) logRequest(req *http.Request) {
-
-	t.Logger.Debugf("--> %s %s\n", req.Method, req.URL)
+func (t *LoggingTransport) logRequest(req *http.Request, reqid string) {
 
 	if req.Body == nil {
+		log.Debug().Str("m", req.Method).Str("r", req.URL.RequestURI()).Str("uid", reqid).Msg("REQ")
 		return
 	}
 
@@ -220,56 +208,40 @@ func (t *loggingTransport) logRequest(req *http.Request) {
 	data, err := io.ReadAll(req.Body)
 
 	if err != nil {
-		t.Logger.Debug("error reading request body:", err)
+		log.Error().Err(err).Str("uid", reqid).Msg(err.Error())
 	} else {
-		t.Logger.Debug(string(data))
-	}
-
-	if req.Body != nil {
-		t.Logger.Debug(req.Body)
+		if log.Trace().Enabled() {
+			log.Trace().Str("m", req.Method).Str("r", req.URL.RequestURI()).Bytes("body", data).Str("uid", reqid).Msg("REQ")
+		} else {
+			log.Debug().Str("m", req.Method).Str("r", req.URL.RequestURI()).Str("uid", reqid).Msg("REQ")
+		}
 	}
 
 	req.Body = io.NopCloser(bytes.NewReader(data))
 }
 
-func (t *loggingTransport) logResponse(resp *http.Response) {
+func (t *LoggingTransport) logResponse(resp *http.Response, reqid string) {
 	ctx := resp.Request.Context()
 	defer resp.Body.Close()
 
-	if start, ok := ctx.Value(contextKeyRequestStart).(time.Time); ok {
-		t.Logger.Debugf("<-- %d %s (%s)\n", resp.StatusCode, resp.Request.URL, Duration(time.Since(start), 2))
-	} else {
-		t.Logger.Debugf("<-- %d %s\n", resp.StatusCode, resp.Request.URL)
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Error().Err(err).Str("uid", reqid).Msg(err.Error())
 	}
 
-	data, err := io.ReadAll(resp.Body)
-
-	if err != nil {
-		t.Logger.Debug("error reading response body:", err)
+	if start, ok := ctx.Value(ctxKeyRequestStart).(time.Time); ok {
+		if log.Trace().Enabled() {
+			log.Trace().Str("r", resp.Request.URL.RequestURI()).Int("status", resp.StatusCode).Bytes("body", data).Str("d", fmt.Sprintf("%s", Duration(time.Since(start), 2))).Str("uid", reqid).Msg("RESP")
+		} else {
+			log.Debug().Str("r", resp.Request.URL.RequestURI()).Int("status", resp.StatusCode).Str("d", fmt.Sprintf("%s", Duration(time.Since(start), 2))).Str("uid", reqid).Msg("RESP")
+		}
 	} else {
-		t.Logger.Debug(string(data))
+		if log.Trace().Enabled() {
+			log.Trace().Str("r", resp.Request.URL.RequestURI()).Int("status", resp.StatusCode).Bytes("body", data).Str("uid", reqid).Msg("RESP")
+		} else {
+			log.Debug().Str("r", resp.Request.URL.RequestURI()).Int("status", resp.StatusCode).Str("uid", reqid).Msg("RESP")
+		}
 	}
 
 	resp.Body = io.NopCloser(bytes.NewReader(data))
-}
-
-// NewStatus initializes a new StatusObject
-func NewStatus(s int, m string) StatusObject {
-	return StatusObject{Status: s, Message: m}
-}
-
-// NewErrorStatus initializes a new StatusObject from an error
-func NewErrorStatus(s int, e error, hint string) StatusObject {
-	if hint != "" {
-		return StatusObject{Status: s, Message: fmt.Sprintf("%s (%s)", e.Error(), hint), RootError: e}
-	}
-	return StatusObject{Status: s, Message: e.Error(), RootError: e}
-}
-
-func (so *StatusObject) String() string {
-	return fmt.Sprintf("%s: %d", so.Message, so.Status)
-}
-
-func (so *StatusObject) Error() string {
-	return so.String()
 }

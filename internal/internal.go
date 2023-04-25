@@ -1,16 +1,27 @@
 package internal
 
 import (
+	"crypto/tls"
+	"fmt"
 	"math"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
-	"fmt"
-	"net/http"
-
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rs/xid"
+	"github.com/rs/zerolog/log"
+
 	"github.com/txsvc/stdlib/v2"
+)
+
+const (
+	// https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/
+	AtMostOnce  byte = 0
+	AtLeastOnce byte = 1
+	ExactlyOnce byte = 2
 )
 
 func StartPrometheusListener() {
@@ -44,6 +55,10 @@ func Duration(d time.Duration, dicimal int) time.Duration {
 	return d
 }
 
+func XID() string {
+	return xid.New().String()
+}
+
 // FIXME move this to stdlib
 func GetBool(env string, def bool) bool {
 	e, ok := os.LookupEnv(env)
@@ -56,4 +71,39 @@ func GetBool(env string, def bool) bool {
 		return true
 	}
 	return false
+}
+
+func CreateMqttClient(protocol, host, port, clientID, username, password string) mqtt.Client {
+	// setup and configuration
+	broker := fmt.Sprintf("%s://%s:%s", protocol, host, port)
+	opts := mqtt.NewClientOptions().AddBroker(broker)
+
+	opts.SetCleanSession(true)
+	opts.SetClientID(clientID)
+	opts.SetConnectTimeout(10 * time.Second)
+	opts.SetKeepAlive(30 * time.Second)
+	opts.SetPingTimeout(5 * time.Second)
+
+	opts.SetDefaultPublishHandler(func(client mqtt.Client, msg mqtt.Message) {
+		log.Logger.Info().Str("topic", msg.Topic()).Str("body", string(msg.Payload())).Msg(fmt.Sprintf("un-handled message id %d", msg.MessageID()))
+	})
+	opts.SetOnConnectHandler(onConnectHandler)
+
+	if username != "" {
+
+		opts.SetUsername(username)
+	}
+	if password != "" {
+		opts.SetPassword(password)
+	}
+	opts.SetTLSConfig(&tls.Config{
+		InsecureSkipVerify: true,
+	})
+
+	// create a client
+	return mqtt.NewClient(opts)
+}
+
+func onConnectHandler(c mqtt.Client) {
+	log.Logger.Info().Bool("connected", c.IsConnected()).Bool("open", c.IsConnectionOpen()).Msg("onConnect")
 }

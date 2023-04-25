@@ -1,12 +1,13 @@
 package drogue
 
 import (
+	"context"
 	"net/http"
-	"os"
 	"testing"
 
+	"github.com/redhat-partner-ecosystem/shadowcar/internal"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
-	"github.com/txsvc/apikit/logger"
 )
 
 const (
@@ -17,25 +18,47 @@ const (
 	devicePassword = "foo-car-pass"
 )
 
-func TestNewClient(t *testing.T) {
+func init() {
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	//zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	//zerolog.SetGlobalLevel(zerolog.InfoLevel)
+}
 
-	cl, err := NewClient(logger.NewLogger(os.Stdout, "debug"))
+func TestNewDrogueClient(t *testing.T) {
+
+	cl, err := NewDrogueClient(context.TODO())
 	assert.NotNil(t, cl)
 	assert.NoError(t, err)
 
 	assert.NotNil(t, cl.rc.HttpClient)
 	assert.NotNil(t, cl.rc.Settings)
 	assert.NotNil(t, cl.rc.Settings.Credentials)
-	assert.NotNil(t, cl.rc.Logger)
 
 	assert.NotEmpty(t, cl.rc.Settings.UserAgent)
 	assert.NotEmpty(t, cl.rc.Settings.Endpoint)
 	assert.NotEmpty(t, cl.rc.Settings.Credentials.Token)
 }
 
+func TestNewDrogueClientWithOptions(t *testing.T) {
+
+	cl, err := NewDrogueClient(context.TODO(), internal.WithEndpoint("foo.example.com"), internal.WithCredentials("foo", "bar"))
+	assert.NotNil(t, cl)
+	assert.NoError(t, err)
+	assert.NotNil(t, cl.rc.HttpClient)
+	assert.NotNil(t, cl.rc.Settings)
+	assert.NotNil(t, cl.rc.Settings.Credentials)
+
+	assert.Equal(t, "foo", cl.rc.Settings.Credentials.UserID)
+	assert.Equal(t, "bar", cl.rc.Settings.Credentials.Token)
+
+	assert.NotEmpty(t, cl.rc.Settings.Endpoint)
+	assert.Equal(t, "foo.example.com", cl.rc.Settings.Endpoint)
+}
+
 func TestGetAccessToken(t *testing.T) {
 
-	cl, _ := NewClient(logger.NewLogger(os.Stdout, "debug"))
+	cl, _ := NewDrogueClient(context.TODO())
 	assert.NotNil(t, cl)
 
 	status, resp := cl.GetAccessToken()
@@ -48,7 +71,7 @@ func TestGetAccessToken(t *testing.T) {
 
 func TestGetAllDevices(t *testing.T) {
 
-	cl, _ := NewClient(logger.NewLogger(os.Stdout, "debug"))
+	cl, _ := NewDrogueClient(context.TODO())
 	assert.NotNil(t, cl)
 
 	status, resp := cl.GetAllDevices(application)
@@ -60,7 +83,7 @@ func TestGetAllDevices(t *testing.T) {
 }
 
 func TestGetDevice(t *testing.T) {
-	cl, _ := NewClient(logger.NewLogger(os.Stdout, "debug"))
+	cl, _ := NewDrogueClient(context.TODO())
 	assert.NotNil(t, cl)
 
 	status, devices := cl.GetAllDevices(application)
@@ -79,7 +102,7 @@ func TestGetDevice(t *testing.T) {
 }
 
 func TestCreateDevice(t *testing.T) {
-	cl, _ := NewClient(logger.NewLogger(os.Stdout, "debug"))
+	cl, _ := NewDrogueClient(context.TODO())
 	assert.NotNil(t, cl)
 
 	device := Device{
@@ -105,7 +128,7 @@ func TestCreateDevice(t *testing.T) {
 }
 
 func TestRegisterAndDeleteDevice(t *testing.T) {
-	cl, _ := NewClient(logger.NewLogger(os.Stdout, "debug"))
+	cl, _ := NewDrogueClient(context.TODO())
 	assert.NotNil(t, cl)
 
 	// create the device
@@ -128,7 +151,7 @@ func TestRegisterAndDeleteDevice(t *testing.T) {
 }
 
 func TestRegisterDevicePass(t *testing.T) {
-	cl, _ := NewClient(logger.NewLogger(os.Stdout, "debug"))
+	cl, _ := NewDrogueClient(context.TODO())
 	assert.NotNil(t, cl)
 
 	// create the device with pass phrase
@@ -147,7 +170,7 @@ func TestRegisterDevicePass(t *testing.T) {
 }
 
 func TestRegisterDeviceUser(t *testing.T) {
-	cl, _ := NewClient(logger.NewLogger(os.Stdout, "debug"))
+	cl, _ := NewDrogueClient(context.TODO())
 	assert.NotNil(t, cl)
 
 	// create the device with pass phrase
