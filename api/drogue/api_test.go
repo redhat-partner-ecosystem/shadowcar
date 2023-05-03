@@ -98,6 +98,8 @@ func TestGetDevice(t *testing.T) {
 		assert.Equal(t, http.StatusOK, status)
 
 		//fmt.Println(resp)
+	} else {
+		assert.Fail(t, "no devices found")
 	}
 }
 

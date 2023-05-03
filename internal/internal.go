@@ -11,6 +11,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/rs/xid"
 	"github.com/rs/zerolog/log"
 
@@ -22,15 +23,20 @@ const (
 	AtMostOnce  byte = 0
 	AtLeastOnce byte = 1
 	ExactlyOnce byte = 2
+
+	PROMETHEUS_HOST         = "prometheus_host"
+	PROMETHEUS_METRICS_PATH = "prometheus_metrics_path"
 )
 
 func StartPrometheusListener() {
 	// prometheus endpoint setup
-	promHost := stdlib.GetString("prom_host", "0.0.0.0:2112")
-	promMetricsPath := stdlib.GetString("prom_metrics_path", "/metrics")
+	promHost := stdlib.GetString(PROMETHEUS_HOST, "0.0.0.0:2112")
+	promMetricsPath := stdlib.GetString(PROMETHEUS_METRICS_PATH, "/metrics")
 
 	// start the metrics listener
 	go func() {
+		log.Debug().Msg("start metrics")
+
 		http.Handle(promMetricsPath, promhttp.Handler())
 		http.ListenAndServe(promHost, nil)
 	}()

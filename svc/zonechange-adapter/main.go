@@ -31,12 +31,22 @@ const (
 	LOG_LEVEL_DEBUG = "log_level_debug"
 )
 
+type (
+	CampaignMapping struct {
+		CampaignID string `json:"campaignId,omitempty"`
+		Zone       string `json:"zone,omitempty"`
+	}
+
+	Campaigns []CampaignMapping
+)
+
 var (
 	kc *kafka.Consumer
 )
 
 func init() {
 
+	// setup logging
 	// zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	if internal.GetBool(LOG_LEVEL_DEBUG, false) {
 		zerolog.SetGlobalLevel(zerolog.TraceLevel)
@@ -44,6 +54,7 @@ func init() {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
 
+	// setup Kafka client
 	clientID := stdlib.GetString(CLIENT_ID, "kafka-listener-svc")
 	groupID := stdlib.GetString(GROUP_ID, "kafka-listener")
 	autoOffset := stdlib.GetString(KAFKA_AUTO_OFFSET, "end") // smallest, earliest, beginning, largest, latest, end
@@ -70,7 +81,18 @@ func init() {
 	}
 	kc = _kc
 
-	// prometheus endpoint setup
+	// setup campaigns etc ...
+	campaignsJSON := stdlib.GetString("campaigns", "")
+	if campaignsJSON != "" {
+		var campaigns Campaigns
+		err = json.Unmarshal([]byte(campaignsJSON), &campaigns)
+		if err != nil {
+			log.Err(err).Msg("")
+		}
+		log.Info().Any("c", campaigns).Msg("campaigns")
+	}
+
+	// setup prometheus endpoint
 	internal.StartPrometheusListener()
 }
 
@@ -91,7 +113,7 @@ func main() {
 		log.Fatal().Err(err).Msg(err.Error())
 	}
 
-	log.Debug().Str("source", sourceTopic).Str("clientid", clientID).Msg("")
+	log.Info().Str("source", sourceTopic).Str("clientid", clientID).Msg("start listening")
 
 	for {
 		msg, err := kc.ReadMessage(-1)
@@ -103,13 +125,24 @@ func main() {
 				log.Err(err).Msg("")
 			}
 
-			// logging & metrics
-			log.Info().Str("vin", evt.CarID).Msg(evt.String())
+			// handle the event
+			zoneChange(&evt)
+
+			// update metrics
 			opsTxProcessed.Inc()
 
 		} else {
 			// The client will automatically try to recover from all errors.
 			log.Error().Err(err).Msg("error")
 		}
+	}
+}
+
+func zoneChange(evt *internal.ZoneChangeEvent) {
+	log.Info().Str("vin", evt.CarID).Msg(evt.String())
+
+	if evt.NextZoneID != "" {
+		// only do sth in case a car enters a zone
+
 	}
 }

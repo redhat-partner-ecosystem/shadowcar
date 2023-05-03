@@ -7,11 +7,15 @@ type (
 		CreationTimestamp string `json:"created,omitempty"`
 	}
 
+	Tokens []Token
+
 	Device struct {
 		Metadata *ScopedMetadata `json:"metadata"`
 		Spec     *DeviceSpec     `json:"spec,omitempty"`
 		Status   *DeviceStatus   `json:"status,omitempty"`
 	}
+
+	Devices []Device
 
 	ScopedMetadata struct {
 		Application       string            `json:"application,omitempty"` // The name of the application the resource is scoped to
@@ -63,9 +67,6 @@ type (
 		Status             string `json:"status"`
 		LastTransitionTime string `json:"lastTransitionTime"`
 	}
-
-	Devices []Device
-	Tokens  []Token
 )
 
 func (d *Device) SetLabel(k, v string) {
