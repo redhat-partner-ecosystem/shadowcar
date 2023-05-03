@@ -3,6 +3,7 @@ module github.com/redhat-partner-ecosystem/shadowcar
 go 1.19
 
 require (
+	github.com/OrlovEvgeny/go-mcache v0.0.0-20200121124330-1a8195b34f3a
 	github.com/PuerkitoBio/rehttp v1.1.0
 	github.com/confluentinc/confluent-kafka-go v1.9.2
 	github.com/eclipse/paho.mqtt.golang v1.4.2

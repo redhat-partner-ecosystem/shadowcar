@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
@@ -17,6 +18,8 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+
+	mcache "github.com/OrlovEvgeny/go-mcache"
 
 	"github.com/txsvc/stdlib/v2"
 )
@@ -33,19 +36,37 @@ const (
 	KAFKA_AUTO_OFFSET  = "auto_offset"
 
 	LOG_LEVEL_DEBUG = "log_level_debug"
+
+	DefaultTTL = time.Minute * 1
 )
 
 type (
-	CampaignMapping struct {
-		CampaignID string `json:"campaignId,omitempty"`
-		Zone       string `json:"zone,omitempty"`
+	/*
+		CampaignMapping struct {
+			CampaignID string `json:"campaignId,omitempty"`
+			Zone       string `json:"zone,omitempty"`
+		}
+	*/
+	ZoneMapping struct {
+		Zone      string   `json:"zone,omitempty"`
+		Campaigns []string `json:"campaigns,omitempty"`
 	}
 
-	Campaigns []CampaignMapping
+	ZoneMap []ZoneMapping
 )
 
 var (
+	mu sync.Mutex
+
 	kc *kafka.Consumer
+
+	cm *ota.CampaignManagerClient
+
+	zoneMap     map[string][]string
+	cc          *mcache.CacheDriver // campaign cache
+	cacheHits   prometheus.Counter
+	cacheMisses prometheus.Counter
+	cacheErrors prometheus.Counter
 )
 
 func init() {
@@ -85,7 +106,30 @@ func init() {
 	}
 	kc = _kc
 
+	// setup other data structures
+	cc = mcache.New()
+
+	// campaign manager client
+	cm, err = ota.NewCampaignManagerClient(context.TODO())
+	if err != nil {
+		log.Fatal().Err(err).Msg(err.Error())
+	}
+
 	// setup prometheus endpoint
+
+	cacheHits = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "campaign_cache_hits",
+		Help: "The number of cache hits looking up a campaign",
+	})
+	cacheMisses = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "campaign_cache_misses",
+		Help: "The number of cache misses looking up a campaign",
+	})
+	cacheErrors = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "campaign_cache_errors",
+		Help: "The number of cache errors",
+	})
+
 	internal.StartPrometheusListener()
 }
 
@@ -140,14 +184,19 @@ func main() {
 }
 
 func zoneChange(evt *internal.ZoneChangeEvent) {
-	log.Info().Str("vin", evt.CarID).Msg(evt.String())
-
 	if evt.NextZoneID != "" {
 		// only do sth in case a car enters a zone
+		campaign := lookupCampaign(evt.CarID, evt.NextZoneID)
 
+		if campaign != "" {
+			log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Msg("")
+		} else {
+			log.Warn().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Msg("no campaign found")
+		}
 	}
 }
 
+/*
 func refreshCampaignMappings() {
 	// setup campaigns etc ...
 	campaignsJSON := stdlib.GetString("campaigns", "")
@@ -169,16 +218,81 @@ func refreshCampaignMappings() {
 				status, group := cm.GetVehicleGroup(campaign.VehicleGroupID)
 				if status == http.StatusOK {
 					for _, vehicle := range group.VINS {
-						key := fmt.Sprintf("%s%s", c.Zone, vehicle)
-						log.Info().Str("key", key).Str("campaignId", campaign.CampaignID).Msg("new mapping")
+						key := fmt.Sprintf("%s-%s", vehicle, c.Zone)
+						log.Debug().Str("key", key).Str("campaignId", campaign.CampaignID).Msg("new mapping")
 					}
 
 				} else {
-					log.Debug().Str("vehicle_group_id", group.VehicleGroupID).Msg("vehicle_group not found")
+					log.Warn().Str("vehicle_group_id", group.VehicleGroupID).Msg("vehicle_group not found")
 				}
 			} else {
-				log.Debug().Str("campaignId", campaign.CampaignID).Msg("campaign not found")
+				log.Warn().Str("campaignId", campaign.CampaignID).Msg("campaign not found")
 			}
 		}
 	}
+}
+*/
+
+func refreshCampaignMappings() {
+	mu.Lock()
+	defer mu.Unlock()
+
+	// setup campaigns etc ...
+	campaignsJSON := stdlib.GetString("campaigns", "")
+	if campaignsJSON != "" {
+		var zm ZoneMap
+		err := json.Unmarshal([]byte(campaignsJSON), &zm)
+		if err != nil {
+			log.Err(err).Msg("")
+		}
+
+		// new map & values ...
+		zoneMap = make(map[string][]string, len(zm))
+		for _, z := range zm {
+			zoneMap[z.Zone] = z.Campaigns
+		}
+	} else {
+		log.Warn().Msg("no zone-to-campaign mapping found")
+	}
+}
+
+func lookupCampaign(vin, zone string) string {
+	key := fmt.Sprintf("%s-%s", vin, zone)
+
+	if c, ok := cc.Get(key); ok {
+		cacheHits.Inc()
+		return c.(ota.Campaign).CampaignID
+	}
+
+	// nothing in the cache, query the campaign manager
+	cacheMisses.Inc()
+
+	if campaigns, ok := zoneMap[zone]; ok {
+		// find the car ...
+		for _, campaignId := range campaigns {
+			status, campaign := cm.GetCampaign(campaignId)
+			if status == http.StatusOK {
+				status, group := cm.GetVehicleGroup(campaign.VehicleGroupID)
+				if status == http.StatusOK {
+					for _, vehicle := range group.VINS {
+						if vehicle == vin {
+							log.Debug().Str("key", key).Str("campaignId", campaign.CampaignID).Msg("new cache entry")
+							cc.Set(key, &campaign, DefaultTTL)
+
+							return campaign.CampaignID
+						}
+					}
+				} else {
+					log.Warn().Str("vehicle_group_id", group.VehicleGroupID).Msg("vehicle_group not found")
+				}
+			} else {
+				log.Warn().Str("campaignId", campaign.CampaignID).Msg("campaign not found")
+			}
+		}
+		return ""
+	} else {
+		cacheErrors.Inc()
+	}
+
+	return ""
 }
