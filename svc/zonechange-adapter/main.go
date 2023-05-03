@@ -3,16 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
-	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/redhat-partner-ecosystem/shadowcar/internal"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -41,7 +38,7 @@ var (
 func init() {
 
 	// zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	if stdlib.GetString(LOG_LEVEL_DEBUG, "") != "" {
+	if internal.GetBool(LOG_LEVEL_DEBUG, false) {
 		zerolog.SetGlobalLevel(zerolog.TraceLevel)
 	} else {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
@@ -74,7 +71,7 @@ func init() {
 	kc = _kc
 
 	// prometheus endpoint setup
-	startPrometheusListener()
+	internal.StartPrometheusListener()
 }
 
 func main() {
@@ -106,29 +103,8 @@ func main() {
 				log.Err(err).Msg("")
 			}
 
-			log.Info().Str("ts", msg.Timestamp.Format(time.RFC3339)).Str("partition", msg.TopicPartition.String()).Msg(evt.CarID)
-
-			/*
-				// back to a json string
-				data, err := json.Marshal(tx)
-				if err != nil {
-					// do something
-				}
-
-				// send to the next destination
-				err = kp.Produce(&kafka.Message{
-					TopicPartition: kafka.TopicPartition{
-						Topic:     &targetTopic,
-						Partition: kafka.PartitionAny,
-					},
-					Value: data,
-				}, evts)
-				if err != nil {
-					fmt.Printf(" --> producer error: %v\n", err)
-				}
-			*/
-
-			// update the metrics
+			// logging & metrics
+			log.Info().Str("vin", evt.CarID).Msg(evt.String())
 			opsTxProcessed.Inc()
 
 		} else {
@@ -136,16 +112,4 @@ func main() {
 			log.Error().Err(err).Msg("error")
 		}
 	}
-}
-
-func startPrometheusListener() {
-	// prometheus endpoint setup
-	promHost := stdlib.GetString("prom_host", "0.0.0.0:2112")
-	promMetricsPath := stdlib.GetString("prom_metrics_path", "/metrics")
-
-	// start the metrics listener
-	go func() {
-		http.Handle(promMetricsPath, promhttp.Handler())
-		http.ListenAndServe(promHost, nil)
-	}()
 }

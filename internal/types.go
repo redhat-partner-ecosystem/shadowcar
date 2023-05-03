@@ -11,3 +11,7 @@ type (
 		VIN            string `json:"vin,omitempty"`
 	}
 )
+
+func (evt *ZoneChangeEvent) String() string {
+	return "*** ZoneChangeEvent"
+}

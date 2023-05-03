@@ -31,8 +31,6 @@ func StartPrometheusListener() {
 
 	// start the metrics listener
 	go func() {
-		fmt.Printf(" --> starting metrics endpoint '%s' on '%s'\n", promMetricsPath, promHost)
-
 		http.Handle(promMetricsPath, promhttp.Handler())
 		http.ListenAndServe(promHost, nil)
 	}()
