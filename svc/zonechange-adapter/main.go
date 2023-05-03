@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/redhat-partner-ecosystem/shadowcar/api/ota"
 	"github.com/redhat-partner-ecosystem/shadowcar/internal"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -81,17 +85,6 @@ func init() {
 	}
 	kc = _kc
 
-	// setup campaigns etc ...
-	campaignsJSON := stdlib.GetString("campaigns", "")
-	if campaignsJSON != "" {
-		var campaigns Campaigns
-		err = json.Unmarshal([]byte(campaignsJSON), &campaigns)
-		if err != nil {
-			log.Err(err).Msg("")
-		}
-		log.Info().Any("c", campaigns).Msg("campaigns")
-	}
-
 	// setup prometheus endpoint
 	internal.StartPrometheusListener()
 }
@@ -112,6 +105,14 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg(err.Error())
 	}
+
+	// setup campaigns and other structs ...
+	go func() {
+		for {
+			refreshCampaignMappings()
+			time.Sleep(30 * time.Second) // refesh every 30 sec
+		}
+	}()
 
 	log.Info().Str("source", sourceTopic).Str("clientid", clientID).Msg("start listening")
 
@@ -144,5 +145,40 @@ func zoneChange(evt *internal.ZoneChangeEvent) {
 	if evt.NextZoneID != "" {
 		// only do sth in case a car enters a zone
 
+	}
+}
+
+func refreshCampaignMappings() {
+	// setup campaigns etc ...
+	campaignsJSON := stdlib.GetString("campaigns", "")
+	if campaignsJSON != "" {
+		var campaigns Campaigns
+		err := json.Unmarshal([]byte(campaignsJSON), &campaigns)
+		if err != nil {
+			log.Err(err).Msg("")
+		}
+
+		// query the campaign manager
+		cm, err := ota.NewCampaignManagerClient(context.TODO())
+		if err != nil {
+			log.Fatal().Err(err).Msg(err.Error())
+		}
+		for _, c := range campaigns {
+			status, campaign := cm.GetCampaign(c.CampaignID)
+			if status == http.StatusOK {
+				status, group := cm.GetVehicleGroup(campaign.VehicleGroupID)
+				if status == http.StatusOK {
+					for _, vehicle := range group.VINS {
+						key := fmt.Sprintf("%s%s", c.Zone, vehicle)
+						log.Info().Str("key", key).Str("campaignId", campaign.CampaignID).Msg("new mapping")
+					}
+
+				} else {
+					log.Debug().Str("vehicle_group_id", group.VehicleGroupID).Msg("vehicle_group not found")
+				}
+			} else {
+				log.Debug().Str("campaignId", campaign.CampaignID).Msg("campaign not found")
+			}
+		}
 	}
 }
