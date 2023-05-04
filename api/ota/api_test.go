@@ -8,11 +8,20 @@ import (
 
 	"github.com/redhat-partner-ecosystem/shadowcar/internal"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 )
 
 const (
-	campaignId = "ed190258-945c-4a69-b1a9-685054b8475d"
+	zone1           = "zone-south"
+	campaignIdZone1 = "00000000-0000-0000-0000-aaaaaaaaaaaa"
+	zone2           = "zone-north"
+	campaignIdZone2 = "00000000-0000-0000-0000-bbbbbbbbbbbb"
+
+	vin            = "WBAFR9C59BC270614"
+	VehicleGroupId = "70bd4efc-5c69-4dcc-a7f7-3b126bfe5eab"
+
+	campaignId = "00000000-0000-0000-0000-aaaaaaaaaaaa"
 )
 
 func init() {
@@ -89,6 +98,37 @@ func TestGetCampaign(t *testing.T) {
 		//fmt.Println(resp)
 	} else {
 		assert.Fail(t, "no campaigns found")
+	}
+}
+
+func TestExecuteCampaign(t *testing.T) {
+
+	cl, err := NewCampaignManagerClient(context.TODO())
+	assert.NotNil(t, cl)
+	assert.NoError(t, err)
+
+	// check the tick/tock logic
+	err = cl.ExecuteCampaign(campaignIdZone1)
+
+	if err == nil {
+		err = cl.ExecuteCampaign(campaignIdZone1)
+		assert.Error(t, err)
+		log.Error().Err(err).Msg("execute campaignIdZone1")
+
+		status, resp := cl.GetCampaignExecution(campaignIdZone1)
+		assert.NotNil(t, resp)
+		assert.NotEmpty(t, resp)
+		assert.Equal(t, http.StatusOK, status)
+	} else {
+		log.Error().Err(err).Msg("execute campaignIdZone1")
+
+		err = cl.ExecuteCampaign(campaignIdZone2)
+		assert.NoError(t, err)
+
+		status, resp := cl.GetCampaignExecution(campaignIdZone2)
+		assert.NotNil(t, resp)
+		assert.NotEmpty(t, resp)
+		assert.Equal(t, http.StatusOK, status)
 	}
 }
 

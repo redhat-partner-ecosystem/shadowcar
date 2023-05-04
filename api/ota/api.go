@@ -97,6 +97,27 @@ func (c *CampaignManagerClient) GetCampaign(campaignId string) (int, Campaign) {
 	return status, resp
 }
 
+func (c *CampaignManagerClient) GetCampaignExecution(campaignId string) (int, CampaignExecutions) {
+	var resp CampaignExecutions
+
+	// FIXME ?limit=10&offset=20
+
+	status, _ := c.rc.GET(fmt.Sprintf("/campaign/%s/execution", campaignId), &resp)
+	if status != http.StatusOK {
+		return status, CampaignExecutions{}
+	}
+
+	return status, resp
+}
+
+func (c *CampaignManagerClient) ExecuteCampaign(campaignId string) error {
+	status, err := c.rc.POST(fmt.Sprintf("/campaign/%s/execution", campaignId), nil, nil)
+	if status != http.StatusCreated {
+		return err
+	}
+	return nil
+}
+
 func (c *CampaignManagerClient) GetVehicleGroup(vehicleGroupId string) (int, VehicleGroup) {
 	var resp VehicleGroup
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -139,14 +140,17 @@ func (c *RestClient) roundTrip(req *http.Request, response interface{}) (int, er
 
 	// anything other than OK, Created, Accepted, NoContent is treated as an error
 	if resp.StatusCode > http.StatusNoContent {
-		return resp.StatusCode, ErrApiInvocationError
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return resp.StatusCode, ErrApiInvocationError
+		}
+		return resp.StatusCode, errors.New(string(body))
 	}
 
 	// unmarshal the response if one is expected
 	if response != nil {
 		err = json.NewDecoder(resp.Body).Decode(response)
 		if err != nil {
-			fmt.Println(err)
 			return http.StatusInternalServerError, err
 		}
 	}

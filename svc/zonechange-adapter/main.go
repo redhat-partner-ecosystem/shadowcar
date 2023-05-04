@@ -41,12 +41,6 @@ const (
 )
 
 type (
-	/*
-		CampaignMapping struct {
-			CampaignID string `json:"campaignId,omitempty"`
-			Zone       string `json:"zone,omitempty"`
-		}
-	*/
 	ZoneMapping struct {
 		Zone      string   `json:"zone,omitempty"`
 		Campaigns []string `json:"campaigns,omitempty"`
@@ -56,23 +50,21 @@ type (
 )
 
 var (
-	mu sync.Mutex
+	zoneToCampaignMapping map[string][]string // zone -> campaigns
+	vinToCampaignCache    *mcache.CacheDriver // campaign cache
 
-	kc *kafka.Consumer
-
-	cm *ota.CampaignManagerClient
-
-	zoneMap     map[string][]string
-	cc          *mcache.CacheDriver // campaign cache
-	cacheHits   prometheus.Counter
+	cacheHits   prometheus.Counter // metrics
 	cacheMisses prometheus.Counter
 	cacheErrors prometheus.Counter
+
+	mu sync.Mutex
+	kc *kafka.Consumer
+	cm *ota.CampaignManagerClient
 )
 
 func init() {
 
 	// setup logging
-	// zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	if internal.GetBool(LOG_LEVEL_DEBUG, false) {
 		zerolog.SetGlobalLevel(zerolog.TraceLevel)
 	} else {
@@ -107,7 +99,7 @@ func init() {
 	kc = _kc
 
 	// setup other data structures
-	cc = mcache.New()
+	vinToCampaignCache = mcache.New()
 
 	// campaign manager client
 	cm, err = ota.NewCampaignManagerClient(context.TODO())
@@ -116,6 +108,7 @@ func init() {
 	}
 
 	// setup campaigns and other structs ...
+
 	go func() {
 		for {
 			refreshCampaignMappings()
@@ -123,7 +116,7 @@ func init() {
 		}
 	}()
 
-	// setup prometheus endpoint
+	// setup prometheus
 
 	cacheHits = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "campaign_cache_hits",
@@ -189,39 +182,44 @@ func zoneChange(evt *internal.ZoneChangeEvent) {
 		campaign := lookupCampaign(evt.CarID, evt.NextZoneID)
 
 		if campaign != "" {
-			log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Msg("")
+			log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Msg("execute campaign")
+
+			err := cm.ExecuteCampaign(campaign)
+			if err != nil {
+				log.Error().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Err(err).Msg("execute campaign failed")
+			}
 		} else {
 			log.Warn().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Msg("no campaign found")
 		}
 	}
 }
 
-/*
-func refreshCampaignMappings() {
-	// setup campaigns etc ...
-	campaignsJSON := stdlib.GetString("campaigns", "")
-	if campaignsJSON != "" {
-		var campaigns Campaigns
-		err := json.Unmarshal([]byte(campaignsJSON), &campaigns)
-		if err != nil {
-			log.Err(err).Msg("")
-		}
+func lookupCampaign(vin, zone string) string {
+	key := fmt.Sprintf("%s-%s", vin, zone)
 
-		// query the campaign manager
-		cm, err := ota.NewCampaignManagerClient(context.TODO())
-		if err != nil {
-			log.Fatal().Err(err).Msg(err.Error())
-		}
-		for _, c := range campaigns {
-			status, campaign := cm.GetCampaign(c.CampaignID)
+	if c, ok := vinToCampaignCache.Get(key); ok {
+		cacheHits.Inc()
+		return c.(*ota.Campaign).CampaignID
+	}
+
+	// nothing in the cache, query the campaign manager
+	cacheMisses.Inc()
+
+	if campaigns, ok := zoneToCampaignMapping[zone]; ok {
+		// find the car ...
+		for _, campaignId := range campaigns {
+			status, campaign := cm.GetCampaign(campaignId)
 			if status == http.StatusOK {
 				status, group := cm.GetVehicleGroup(campaign.VehicleGroupID)
 				if status == http.StatusOK {
 					for _, vehicle := range group.VINS {
-						key := fmt.Sprintf("%s-%s", vehicle, c.Zone)
-						log.Debug().Str("key", key).Str("campaignId", campaign.CampaignID).Msg("new mapping")
-					}
+						if vehicle == vin {
+							log.Debug().Str("key", key).Str("campaignId", campaign.CampaignID).Msg("new cache entry")
+							vinToCampaignCache.Set(key, &campaign, DefaultTTL)
 
+							return campaign.CampaignID
+						}
+					}
 				} else {
 					log.Warn().Str("vehicle_group_id", group.VehicleGroupID).Msg("vehicle_group not found")
 				}
@@ -229,9 +227,12 @@ func refreshCampaignMappings() {
 				log.Warn().Str("campaignId", campaign.CampaignID).Msg("campaign not found")
 			}
 		}
+		return ""
 	}
+
+	cacheErrors.Inc()
+	return ""
 }
-*/
 
 func refreshCampaignMappings() {
 	mu.Lock()
@@ -247,52 +248,11 @@ func refreshCampaignMappings() {
 		}
 
 		// new map & values ...
-		zoneMap = make(map[string][]string, len(zm))
+		zoneToCampaignMapping = make(map[string][]string, len(zm))
 		for _, z := range zm {
-			zoneMap[z.Zone] = z.Campaigns
+			zoneToCampaignMapping[z.Zone] = z.Campaigns
 		}
 	} else {
 		log.Warn().Msg("no zone-to-campaign mapping found")
 	}
-}
-
-func lookupCampaign(vin, zone string) string {
-	key := fmt.Sprintf("%s-%s", vin, zone)
-
-	if c, ok := cc.Get(key); ok {
-		cacheHits.Inc()
-		return c.(*ota.Campaign).CampaignID
-	}
-
-	// nothing in the cache, query the campaign manager
-	cacheMisses.Inc()
-
-	if campaigns, ok := zoneMap[zone]; ok {
-		// find the car ...
-		for _, campaignId := range campaigns {
-			status, campaign := cm.GetCampaign(campaignId)
-			if status == http.StatusOK {
-				status, group := cm.GetVehicleGroup(campaign.VehicleGroupID)
-				if status == http.StatusOK {
-					for _, vehicle := range group.VINS {
-						if vehicle == vin {
-							log.Debug().Str("key", key).Str("campaignId", campaign.CampaignID).Msg("new cache entry")
-							cc.Set(key, &campaign, DefaultTTL)
-
-							return campaign.CampaignID
-						}
-					}
-				} else {
-					log.Warn().Str("vehicle_group_id", group.VehicleGroupID).Msg("vehicle_group not found")
-				}
-			} else {
-				log.Warn().Str("campaignId", campaign.CampaignID).Msg("campaign not found")
-			}
-		}
-		return ""
-	} else {
-		cacheErrors.Inc()
-	}
-
-	return ""
 }

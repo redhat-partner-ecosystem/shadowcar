@@ -22,6 +22,18 @@ type (
 		InProgress    int `json:"in_progress,omitempty"`
 	}
 
+	CampaignExecution struct {
+		CampaignExecutionID string `json:"id,omitempty"`
+		VIN                 string `json:"vin,omitempty"`
+		Status              string `json:"status,omitempty"`
+		Report              string `json:"report,omitempty"`
+		CampaignID          string `json:"campaign_id,omitempty"`
+		StartedAt           string `json:"started_at,omitempty"`
+		FinishedAt          string `json:"finished_at,omitempty"`
+	}
+
+	CampaignExecutions []CampaignExecution
+
 	VehicleGroup struct {
 		VehicleGroupID string   `json:"id,omitempty"`
 		Name           string   `json:"name,omitempty"`
