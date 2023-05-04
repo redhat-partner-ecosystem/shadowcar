@@ -115,6 +115,14 @@ func init() {
 		log.Fatal().Err(err).Msg(err.Error())
 	}
 
+	// setup campaigns and other structs ...
+	go func() {
+		for {
+			refreshCampaignMappings()
+			time.Sleep(30 * time.Second) // refesh every 30 sec
+		}
+	}()
+
 	// setup prometheus endpoint
 
 	cacheHits = promauto.NewCounter(prometheus.CounterOpts{
@@ -149,14 +157,6 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg(err.Error())
 	}
-
-	// setup campaigns and other structs ...
-	go func() {
-		for {
-			refreshCampaignMappings()
-			time.Sleep(30 * time.Second) // refesh every 30 sec
-		}
-	}()
 
 	log.Info().Str("source", sourceTopic).Str("clientid", clientID).Msg("start listening")
 
@@ -261,7 +261,7 @@ func lookupCampaign(vin, zone string) string {
 
 	if c, ok := cc.Get(key); ok {
 		cacheHits.Inc()
-		return c.(ota.Campaign).CampaignID
+		return c.(*ota.Campaign).CampaignID
 	}
 
 	// nothing in the cache, query the campaign manager
