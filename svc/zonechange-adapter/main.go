@@ -200,7 +200,7 @@ func zoneChange(evt *internal.ZoneChangeEvent) {
 			lastUpdate, _ = strconv.ParseInt(last, 0, 64)
 		}
 
-		if stdlib.Now()-lastUpdate > 60000 {
+		if stdlib.Now()-lastUpdate > stdlib.GetInt("zone_change_delay", 60000) {
 
 			campaign := lookupCampaign(evt.CarID, evt.NextZoneID)
 
