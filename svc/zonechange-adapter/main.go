@@ -200,10 +200,7 @@ func zoneChange(evt *internal.ZoneChangeEvent) {
 		var age int64 = stdlib.Now()
 		if last, ok := device.GetAnnotation("lastUpdate"); ok {
 			lastUpdate, _ := strconv.ParseInt(last, 0, 64)
-
-			fmt.Printf("%d,%d\n", lastUpdate, stdlib.Now())
-
-			age = (stdlib.Now() - lastUpdate) / 1000
+			age = stdlib.Now() - lastUpdate
 		}
 
 		if age > stdlib.GetInt("zone_change_delay", 60) {
