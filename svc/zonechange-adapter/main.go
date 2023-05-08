@@ -22,7 +22,6 @@ import (
 
 	"github.com/txsvc/apikit"
 	"github.com/txsvc/apikit/api"
-	"github.com/txsvc/apikit/config"
 	"github.com/txsvc/stdlib/v2"
 
 	"github.com/redhat-partner-ecosystem/shadowcar/api/drogue"
@@ -300,7 +299,7 @@ func setup() *echo.Echo {
 
 	// add your own endpoints here
 	e.GET("/", api.DefaultEndpoint)
-	e.GET("/ping", pingEndpoint)
+	e.GET("/api/registry/apps/:applicationid/devices/:deviceid", getDeviceEndpoint)
 
 	// done
 	return e
@@ -311,13 +310,20 @@ func shutdown(ctx context.Context, a *apikit.App) error {
 	return nil
 }
 
-// pingEndpoint returns http.StatusOK and the version string
-func pingEndpoint(c echo.Context) error {
-
-	resp := api.StatusObject{
-		Status:  http.StatusOK,
-		Message: fmt.Sprintf("version: %s", config.GetConfig().Info().VersionString()),
+func getDeviceEndpoint(c echo.Context) error {
+	applicationId := c.Param("applicationid")
+	if applicationId == "" {
+		return api.ErrorResponse(c, http.StatusBadRequest, api.ErrInvalidRoute, "applicationid")
+	}
+	deviceId := c.Param("deviceid")
+	if deviceId == "" {
+		return api.ErrorResponse(c, http.StatusBadRequest, api.ErrInvalidRoute, "deviceid")
 	}
 
-	return api.StandardResponse(c, http.StatusOK, resp)
+	status, device := dm.GetDevice(applicationId, deviceId)
+	if status != http.StatusOK {
+		return api.ErrorResponse(c, http.StatusBadRequest, api.ErrInternalError, "device not found")
+	}
+
+	return api.StandardResponse(c, http.StatusOK, device)
 }
