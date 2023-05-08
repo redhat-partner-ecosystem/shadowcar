@@ -206,18 +206,22 @@ func zoneChange(evt *internal.ZoneChangeEvent) {
 			campaign := lookupCampaign(evt.CarID, evt.NextZoneID)
 
 			if campaign != "" {
-				log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Int64("age", age).Msg("execute campaign")
-
-				err := cm.ExecuteCampaign(campaign)
-				if err != nil {
-					log.Error().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Err(err).Msg("execute campaign failed")
+				if currentCampaign, _ := device.GetAnnotation("campaign"); currentCampaign == campaign {
+					log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Int64("age", age).Msg("skipping execute campaign")
 				} else {
-					device.Metadata.Generation++
-					device.SetLabel("zone", evt.NextZoneID)
-					device.SetAnnotation("lastUpdate", fmt.Sprintf("%d", stdlib.Now()))
-					device.SetAnnotation("campaign", campaign)
+					log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Int64("age", age).Msg("executing campaign")
 
-					dm.UpdateDevice(stdlib.GetString(APPLICATION_ID, "bobbycar"), device, false)
+					err := cm.ExecuteCampaign(campaign)
+					if err != nil {
+						log.Error().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Err(err).Msg("execute campaign failed")
+					} else {
+						device.Metadata.Generation++
+						device.SetLabel("zone", evt.NextZoneID)
+						device.SetAnnotation("lastUpdate", fmt.Sprintf("%d", stdlib.Now()))
+						device.SetAnnotation("campaign", campaign)
+
+						dm.UpdateDevice(stdlib.GetString(APPLICATION_ID, "bobbycar"), device, false)
+					}
 				}
 			} else {
 				log.Warn().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Msg("no campaign found")
