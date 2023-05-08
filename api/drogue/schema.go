@@ -76,11 +76,25 @@ func (d *Device) SetLabel(k, v string) {
 	d.Metadata.SetLabel(k, v)
 }
 
+func (d *Device) GetLabel(k string) (string, bool) {
+	if d.Metadata == nil {
+		return "", false
+	}
+	return d.Metadata.GetLabel(k)
+}
+
 func (d *Device) SetAnnotation(k, v string) {
 	if d.Metadata == nil {
 		d.Metadata = &ScopedMetadata{}
 	}
 	d.Metadata.SetAnnotation(k, v)
+}
+
+func (d *Device) GetAnnotation(k string) (string, bool) {
+	if d.Metadata == nil {
+		return "", false
+	}
+	return d.Metadata.GetAnnotation(k)
 }
 
 func (m *ScopedMetadata) SetLabel(k, v string) {
@@ -90,9 +104,23 @@ func (m *ScopedMetadata) SetLabel(k, v string) {
 	m.Labels[k] = v
 }
 
+func (d *ScopedMetadata) GetLabel(k string) (string, bool) {
+	if v, ok := d.Labels[k]; ok {
+		return v, true
+	}
+	return "", false
+}
+
 func (m *ScopedMetadata) SetAnnotation(k, v string) {
 	if m.Annotations == nil {
 		m.Annotations = make(map[string]string)
 	}
 	m.Annotations[k] = v
+}
+
+func (d *ScopedMetadata) GetAnnotation(k string) (string, bool) {
+	if v, ok := d.Annotations[k]; ok {
+		return v, true
+	}
+	return "", false
 }

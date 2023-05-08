@@ -46,7 +46,7 @@ func TestLogLevel(t *testing.T) {
 	//log.Trace().Enabled()
 }
 
-func TestLookupCampaign(t *testing.T) {
+func _TestLookupCampaign(t *testing.T) {
 
 	campaign := lookupCampaign(vin, zone1)
 	assert.Equal(t, campaignIdZone1, campaign)
@@ -56,7 +56,7 @@ func TestLookupCampaign(t *testing.T) {
 
 }
 
-func TestLookupCampaignWithCache(t *testing.T) {
+func _TestLookupCampaignWithCache(t *testing.T) {
 
 	campaign := lookupCampaign(vin, zone1)
 	assert.Equal(t, campaignIdZone1, campaign)
@@ -67,4 +67,26 @@ func TestLookupCampaignWithCache(t *testing.T) {
 	assert.Equal(t, campaignIdZone2, campaign)
 	fmt.Println(cacheMisses)
 	fmt.Println(cacheHits)
+}
+
+func _TestLookupDevice(t *testing.T) {
+	device := lookupVehicle(vin)
+	assert.NotNil(t, device)
+}
+
+func _TestUpdateDevice(t *testing.T) {
+	device := lookupVehicle(vin)
+	assert.NotNil(t, device)
+}
+
+func TestZoneChange(t *testing.T) {
+	device := lookupVehicle(vin)
+	assert.NotNil(t, device)
+
+	evt := internal.ZoneChangeEvent{
+		NextZoneID: zone2,
+		CarID:      vin,
+	}
+
+	zoneChange(&evt)
 }

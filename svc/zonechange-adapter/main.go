@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/redhat-partner-ecosystem/shadowcar/api/drogue"
 	"github.com/redhat-partner-ecosystem/shadowcar/api/ota"
 	"github.com/redhat-partner-ecosystem/shadowcar/internal"
 
@@ -26,8 +28,9 @@ import (
 
 const (
 	// expected ENV variables
-	CLIENT_ID = "client_id"
-	GROUP_ID  = "group_id"
+	CLIENT_ID      = "client_id"
+	GROUP_ID       = "group_id"
+	APPLICATION_ID = "application_id"
 
 	SOURCE_TOPIC = "source_topic"
 
@@ -60,6 +63,7 @@ var (
 	mu sync.Mutex
 	kc *kafka.Consumer
 	cm *ota.CampaignManagerClient
+	dm *drogue.DrogueClient
 )
 
 func init() {
@@ -103,6 +107,12 @@ func init() {
 
 	// campaign manager client
 	cm, err = ota.NewCampaignManagerClient(context.TODO())
+	if err != nil {
+		log.Fatal().Err(err).Msg(err.Error())
+	}
+
+	// Drogue client
+	dm, err = drogue.NewDrogueClient(context.TODO())
 	if err != nil {
 		log.Fatal().Err(err).Msg(err.Error())
 	}
@@ -177,19 +187,40 @@ func main() {
 }
 
 func zoneChange(evt *internal.ZoneChangeEvent) {
+	device := lookupVehicle(evt.CarID)
+	if device == nil {
+		log.Warn().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Msg("device not found")
+		return
+	}
+
+	// only do sth in case a car ENTERS a zone
 	if evt.NextZoneID != "" {
-		// only do sth in case a car enters a zone
-		campaign := lookupCampaign(evt.CarID, evt.NextZoneID)
+		var lastUpdate int64 = 0
+		if last, ok := device.GetLabel("lastUpdate"); ok {
+			lastUpdate, _ = strconv.ParseInt(last, 0, 64)
+		}
 
-		if campaign != "" {
-			log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Msg("execute campaign")
+		if stdlib.Now()-lastUpdate > 60000 {
 
-			err := cm.ExecuteCampaign(campaign)
-			if err != nil {
-				log.Error().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Err(err).Msg("execute campaign failed")
+			campaign := lookupCampaign(evt.CarID, evt.NextZoneID)
+
+			if campaign != "" {
+				log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Msg("execute campaign")
+
+				err := cm.ExecuteCampaign(campaign)
+				if err != nil {
+					log.Error().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Err(err).Msg("execute campaign failed")
+				} else {
+					device.Metadata.Generation++
+					device.SetLabel("zone", evt.NextZoneID)
+					device.SetAnnotation("lastUpdate", fmt.Sprintf("%d", stdlib.Now()))
+					device.SetAnnotation("campaign", campaign)
+
+					dm.UpdateDevice(stdlib.GetString(APPLICATION_ID, "bobbycar"), device, false)
+				}
+			} else {
+				log.Warn().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Msg("no campaign found")
 			}
-		} else {
-			log.Warn().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Msg("no campaign found")
 		}
 	}
 }
@@ -232,6 +263,14 @@ func lookupCampaign(vin, zone string) string {
 
 	cacheErrors.Inc()
 	return ""
+}
+
+func lookupVehicle(vin string) *drogue.Device {
+	status, device := dm.GetDevice(stdlib.GetString(APPLICATION_ID, "bobbycar"), vin)
+	if status != http.StatusOK {
+		return nil
+	}
+	return &device
 }
 
 func refreshCampaignMappings() {
