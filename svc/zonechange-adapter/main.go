@@ -195,19 +195,18 @@ func zoneChange(evt *internal.ZoneChangeEvent) {
 
 	// only do sth in case a car ENTERS a zone
 	if evt.NextZoneID != "" {
-		var lastUpdate int64 = 0
-		if last, ok := device.GetLabel("lastUpdate"); ok {
-			lastUpdate, _ = strconv.ParseInt(last, 0, 64)
+		var age int64 = stdlib.Now()
+		if last, ok := device.GetAnnotation("lastUpdate"); ok {
+			lastUpdate, _ := strconv.ParseInt(last, 0, 64)
+			age = (stdlib.Now() - lastUpdate) / 1000
 		}
 
-		age := stdlib.Now() - lastUpdate
-		log.Info().Int64("age", age).Msg("testing")
-		if age > stdlib.GetInt("zone_change_delay", 60000) {
+		if age > stdlib.GetInt("zone_change_delay", 60) {
 
 			campaign := lookupCampaign(evt.CarID, evt.NextZoneID)
 
 			if campaign != "" {
-				log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Msg("execute campaign")
+				log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Int64("age", age).Msg("execute campaign")
 
 				err := cm.ExecuteCampaign(campaign)
 				if err != nil {
