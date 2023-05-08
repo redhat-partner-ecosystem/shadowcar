@@ -187,7 +187,9 @@ func main() {
 }
 
 func zoneChange(evt *internal.ZoneChangeEvent) {
+
 	device := lookupVehicle(evt.CarID)
+
 	if device == nil {
 		log.Warn().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Msg("device not found")
 		return
@@ -198,6 +200,9 @@ func zoneChange(evt *internal.ZoneChangeEvent) {
 		var age int64 = stdlib.Now()
 		if last, ok := device.GetAnnotation("lastUpdate"); ok {
 			lastUpdate, _ := strconv.ParseInt(last, 0, 64)
+
+			fmt.Printf("%d,%d\n", lastUpdate, stdlib.Now())
+
 			age = (stdlib.Now() - lastUpdate) / 1000
 		}
 
@@ -212,6 +217,7 @@ func zoneChange(evt *internal.ZoneChangeEvent) {
 					log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Int64("age", age).Msg("executing campaign")
 
 					err := cm.ExecuteCampaign(campaign)
+
 					if err != nil {
 						log.Error().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Err(err).Msg("execute campaign failed")
 					} else {
