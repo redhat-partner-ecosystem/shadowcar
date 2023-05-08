@@ -11,19 +11,23 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/redhat-partner-ecosystem/shadowcar/api/drogue"
-	"github.com/redhat-partner-ecosystem/shadowcar/api/ota"
-	"github.com/redhat-partner-ecosystem/shadowcar/internal"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	mcache "github.com/OrlovEvgeny/go-mcache"
 
+	"github.com/txsvc/apikit"
+	"github.com/txsvc/apikit/api"
+	"github.com/txsvc/apikit/config"
 	"github.com/txsvc/stdlib/v2"
+
+	"github.com/redhat-partner-ecosystem/shadowcar/api/drogue"
+	"github.com/redhat-partner-ecosystem/shadowcar/api/ota"
+	"github.com/redhat-partner-ecosystem/shadowcar/internal"
 )
 
 const (
@@ -56,10 +60,6 @@ var (
 	zoneToCampaignMapping map[string][]string // zone -> campaigns
 	vinToCampaignCache    *mcache.CacheDriver // campaign cache
 
-	cacheHits   prometheus.Counter // metrics
-	cacheMisses prometheus.Counter
-	cacheErrors prometheus.Counter
-
 	mu sync.Mutex
 	kc *kafka.Consumer
 	cm *ota.CampaignManagerClient
@@ -83,7 +83,7 @@ func init() {
 	// kafka setup
 	kafkaService := stdlib.GetString(KAFKA_SERVICE, "")
 	if kafkaService == "" {
-		panic(fmt.Errorf("missing env KAFKA_SERVICE"))
+		log.Fatal().Err(fmt.Errorf("missing env KAFKA_SERVICE")).Msg("aborting")
 	}
 	kafkaServicePort := stdlib.GetString(KAFKA_SERVICE_PORT, "9092")
 	kafkaServer := fmt.Sprintf("%s:%s", kafkaService, kafkaServicePort)
@@ -111,7 +111,7 @@ func init() {
 		log.Fatal().Err(err).Msg(err.Error())
 	}
 
-	// Drogue client
+	// drogue client
 	dm, err = drogue.NewDrogueClient(context.TODO())
 	if err != nil {
 		log.Fatal().Err(err).Msg(err.Error())
@@ -126,34 +126,24 @@ func init() {
 		}
 	}()
 
-	// setup prometheus
-
-	cacheHits = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "campaign_cache_hits",
-		Help: "The number of cache hits looking up a campaign",
-	})
-	cacheMisses = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "campaign_cache_misses",
-		Help: "The number of cache misses looking up a campaign",
-	})
-	cacheErrors = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "campaign_cache_errors",
-		Help: "The number of cache errors",
-	})
-
-	internal.StartPrometheusListener()
 }
 
 func main() {
+	// start the kafka event listener
+	go listenZoneChangeEvents()
+
+	// start the http listener
+	svc, err := apikit.New(setup, shutdown)
+	if err != nil {
+		log.Fatal().Err(err).Msg(err.Error())
+	}
+	svc.Listen("")
+}
+
+func listenZoneChangeEvents() {
 
 	clientID := stdlib.GetString("client_id", "kafka-listener-svc")
 	sourceTopic := stdlib.GetString("source_topic", "")
-
-	// metrics collectors
-	opsTxProcessed := promauto.NewCounter(prometheus.CounterOpts{
-		Name: "kafka_listener_events",
-		Help: "The number of processed events",
-	})
 
 	// subscribe to the topic(s)
 	err := kc.SubscribeTopics(strings.Split(sourceTopic, ","), nil)
@@ -174,10 +164,7 @@ func main() {
 			}
 
 			// handle the event
-			zoneChange(&evt)
-
-			// update metrics
-			opsTxProcessed.Inc()
+			handleZoneChange(&evt)
 
 		} else {
 			// The client will automatically try to recover from all errors.
@@ -186,7 +173,7 @@ func main() {
 	}
 }
 
-func zoneChange(evt *internal.ZoneChangeEvent) {
+func handleZoneChange(evt *internal.ZoneChangeEvent) {
 
 	device := lookupVehicle(evt.CarID)
 
@@ -239,12 +226,10 @@ func lookupCampaign(vin, zone string) string {
 	key := fmt.Sprintf("%s-%s", vin, zone)
 
 	if c, ok := vinToCampaignCache.Get(key); ok {
-		cacheHits.Inc()
 		return c.(*ota.Campaign).CampaignID
 	}
 
 	// nothing in the cache, query the campaign manager
-	cacheMisses.Inc()
 
 	if campaigns, ok := zoneToCampaignMapping[zone]; ok {
 		// find the car ...
@@ -271,7 +256,6 @@ func lookupCampaign(vin, zone string) string {
 		return ""
 	}
 
-	cacheErrors.Inc()
 	return ""
 }
 
@@ -304,4 +288,36 @@ func refreshCampaignMappings() {
 	} else {
 		log.Warn().Msg("no zone-to-campaign mapping found")
 	}
+}
+
+func setup() *echo.Echo {
+	// create a new router instance
+	e := echo.New()
+
+	// add and configure any middlewares
+	e.Use(middleware.Recover())
+	e.Use(middleware.CORSWithConfig(middleware.DefaultCORSConfig))
+
+	// add your own endpoints here
+	e.GET("/", api.DefaultEndpoint)
+	e.GET("/ping", pingEndpoint)
+
+	// done
+	return e
+}
+
+func shutdown(ctx context.Context, a *apikit.App) error {
+	// TODO: implement your own stuff here
+	return nil
+}
+
+// pingEndpoint returns http.StatusOK and the version string
+func pingEndpoint(c echo.Context) error {
+
+	resp := api.StatusObject{
+		Status:  http.StatusOK,
+		Message: fmt.Sprintf("version: %s", config.GetConfig().Info().VersionString()),
+	}
+
+	return api.StandardResponse(c, http.StatusOK, resp)
 }

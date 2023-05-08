@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/redhat-partner-ecosystem/shadowcar/internal"
@@ -32,10 +31,6 @@ func TestInit(t *testing.T) {
 	assert.NotNil(t, cm)
 	assert.NotNil(t, kc)
 
-	assert.NotNil(t, cacheHits)
-	assert.NotNil(t, cacheMisses)
-	assert.NotNil(t, cacheErrors)
-
 	assert.NotEmpty(t, zoneToCampaignMapping)
 }
 
@@ -60,13 +55,10 @@ func _TestLookupCampaignWithCache(t *testing.T) {
 
 	campaign := lookupCampaign(vin, zone1)
 	assert.Equal(t, campaignIdZone1, campaign)
-	fmt.Println(cacheMisses)
-	fmt.Println(cacheHits)
 
 	campaign = lookupCampaign(vin, zone2)
 	assert.Equal(t, campaignIdZone2, campaign)
-	fmt.Println(cacheMisses)
-	fmt.Println(cacheHits)
+
 }
 
 func _TestLookupDevice(t *testing.T) {
@@ -88,5 +80,5 @@ func TestZoneChange(t *testing.T) {
 		CarID:      vin,
 	}
 
-	zoneChange(&evt)
+	handleZoneChange(&evt)
 }
