@@ -226,6 +226,8 @@ func zoneChange(evt *internal.ZoneChangeEvent) {
 			} else {
 				log.Warn().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Msg("no campaign found")
 			}
+		} else {
+			log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Int64("age", age).Msg("ignoring zone trigger")
 		}
 	}
 }
