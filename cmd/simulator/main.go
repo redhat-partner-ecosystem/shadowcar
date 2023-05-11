@@ -148,7 +148,9 @@ func simulate(vin, application string) {
 	// connect to the endpoint gateway
 
 	cl := createMqttClient(MqttEndpointProtocol, MqttEndpointHost, MqttEndpointPort, vin, user, defaultDevicePassword)
+	//cl := createMqttClient(MqttEndpointProtocol, MqttEndpointHost, MqttEndpointPort, vin, "admin", "drg_010oCl_icBEpmBpVQS6YUfcq3te5mo5ILPOeelYpDY")
 	if token := cl.Connect(); token.Wait() && token.Error() != nil {
+		fmt.Println("BP1")
 		log.Fatal().Err(token.Error()).Msg(token.Error().Error())
 	}
 	defer cl.Disconnect(250)
@@ -157,6 +159,7 @@ func simulate(vin, application string) {
 	// see https://book.drogue.io/drogue-cloud/dev/user-guide/endpoint-mqtt.html#_subscribe_to_commands
 	topic := "command/inbox//#"
 	if token := cl.Subscribe(topic, AtLeastOnce, receiveCommand); token.Wait() && token.Error() != nil {
+		fmt.Println("BP2")
 		log.Fatal().Err(token.Error()).Msg(token.Error().Error())
 	}
 
