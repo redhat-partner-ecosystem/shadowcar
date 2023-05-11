@@ -16,9 +16,10 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/txsvc/apikit"
 	"github.com/txsvc/apikit/api"
+
 	"github.com/txsvc/stdlib/v2"
+	"github.com/txsvc/stdlib/v2/stdlibx/stringsx"
 
 	"github.com/redhat-partner-ecosystem/shadowcar/api/drogue"
 	"github.com/redhat-partner-ecosystem/shadowcar/api/ota"
@@ -38,6 +39,9 @@ const (
 	KAFKA_AUTO_OFFSET  = "auto_offset"
 
 	DefaultTTL = time.Minute * 1
+
+	PORT_ENV     = "PORT"
+	PORT_DEFAULT = "8080"
 )
 
 var (
@@ -131,11 +135,8 @@ func main() {
 	go listenZoneChangeEvents()
 
 	// start the http listener
-	svc, err := apikit.New(setup, shutdown)
-	if err != nil {
-		log.Fatal().Err(err).Msg(err.Error())
-	}
-	svc.Listen("")
+	startListener()
+
 }
 
 func listenZoneChangeEvents() {
@@ -201,12 +202,11 @@ func handleZoneChange(evt *internal.ZoneChangeEvent) {
 			err := cm.ExecuteCampaign(campaign)
 
 			if err != nil {
-				log.Error().Str("vin", evt.CarID).Str("zone", zone).Str("campaign", campaign).Err(err).Msg("execute campaign failed")
+				log.Error().Str("vin", evt.CarID).Str("zone", zone).Str("campaign", campaign).Err(err).Msg("executing campaign failed")
 			} else {
-				device.Metadata.Generation++
-				device.SetLabel("zone", zone)
 				device.SetAnnotation("lastCampaignExecution", fmt.Sprintf("%d", stdlib.Now()))
 				device.SetAnnotation("campaign", campaign)
+				device.SetLabel("zone", zone)
 
 				dm.UpdateDevice(stdlib.GetString(APPLICATION_ID, "bobbycar"), device, false)
 			}
@@ -253,9 +253,10 @@ func refreshVehicleCampaignStatus() {
 
 // http endpoint setup
 
-func setup() *echo.Echo {
+func startListener() {
 	// create a new router instance
 	e := echo.New()
+	e.HideBanner = true
 
 	// add and configure any middlewares
 	e.Use(middleware.Recover())
@@ -265,13 +266,8 @@ func setup() *echo.Echo {
 	e.GET("/", api.DefaultEndpoint)
 	e.GET("/api/registry/apps/:applicationid/devices/:deviceid", getDeviceEndpoint)
 
-	// done
-	return e
-}
-
-func shutdown(ctx context.Context, a *apikit.App) error {
-	kc.Close() // close kafka listener
-	return nil
+	port := fmt.Sprintf(":%s", stringsx.TakeOne(stdlib.GetString(PORT_ENV, ""), PORT_DEFAULT))
+	log.Fatal().Err(e.Start(port)).Msg("fuck")
 }
 
 // handler
