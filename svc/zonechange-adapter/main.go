@@ -17,7 +17,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	mcache "github.com/OrlovEvgeny/go-mcache"
+	//mcache "github.com/OrlovEvgeny/go-mcache"
 
 	"github.com/txsvc/apikit"
 	"github.com/txsvc/apikit/api"
@@ -43,6 +43,7 @@ const (
 	DefaultTTL = time.Minute * 1
 )
 
+/*
 type (
 	ZoneMapping struct {
 		Zone      string   `json:"zone,omitempty"`
@@ -51,10 +52,12 @@ type (
 
 	ZoneMap []ZoneMapping
 )
+*/
 
 var (
-	zoneToCampaignMapping map[string][]string // zone -> campaigns
-	vinToCampaignCache    *mcache.CacheDriver // campaign cache
+	//zoneToCampaignMapping map[string][]string // zone -> campaigns
+	//vinToCampaignCache    *mcache.CacheDriver // campaign cache
+	campaigns []string
 
 	mu sync.Mutex
 	kc *kafka.Consumer
@@ -95,7 +98,7 @@ func init() {
 	kc = _kc
 
 	// setup other data structures
-	vinToCampaignCache = mcache.New()
+	// vinToCampaignCache = mcache.New()
 
 	// campaign manager client
 	cm, err = ota.NewCampaignManagerClient(context.TODO())
@@ -109,15 +112,22 @@ func init() {
 		log.Fatal().Err(err).Msg(err.Error())
 	}
 
-	// setup campaigns and other structs ...
+	campaigns = make([]string, 4)
+	campaigns[0] = "aaaaaaaa-0000-0000-0000-000000000000" // Summit Adaptive Autosar Update A
+	campaigns[1] = "bbbbbbbb-0000-0000-0000-000000000000" // Summit Adaptive Autosar Update B
+	campaigns[2] = "00000000-0000-0000-0000-aaaaaaaaaaaa" // VECS Adaptive Autosar Update A
+	campaigns[3] = "00000000-0000-0000-0000-bbbbbbbbbbbb" // VECS Adaptive Autosar Update B
 
-	go func() {
-		for {
-			refreshCampaignMappings()
-			time.Sleep(30 * time.Second) // refesh every 30 sec
-		}
-	}()
+	/*
+		// setup campaigns and other structs ...
 
+		go func() {
+			for {
+				refreshCampaignMappings()
+				time.Sleep(30 * time.Second) // refesh every 30 sec
+			}
+		}()
+	*/
 }
 
 func main() {
@@ -220,38 +230,40 @@ func handleZoneChange(evt *internal.ZoneChangeEvent) {
 func lookupCampaign(vin, zone string) string {
 	key := fmt.Sprintf("%s-%s", vin, zone)
 
-	if c, ok := vinToCampaignCache.Get(key); ok {
-		return c.(*ota.Campaign).CampaignID
-	}
+	/*
+		if c, ok := vinToCampaignCache.Get(key); ok {
+			return c.(*ota.Campaign).CampaignID
+		}
+	*/
 
 	// nothing in the cache, query the campaign manager
 
-	if campaigns, ok := zoneToCampaignMapping[zone]; ok {
-		// find the car ...
-		for _, campaignId := range campaigns {
-			status, campaign := cm.GetCampaign(campaignId)
+	//if campaigns, ok := zoneToCampaignMapping[zone]; ok {
+	// find the car ...
+	for _, campaignId := range campaigns {
+		status, campaign := cm.GetCampaign(campaignId)
+		if status == http.StatusOK {
+			status, group := cm.GetVehicleGroup(campaign.VehicleGroupID)
 			if status == http.StatusOK {
-				status, group := cm.GetVehicleGroup(campaign.VehicleGroupID)
-				if status == http.StatusOK {
-					for _, vehicle := range group.VINS {
-						if vehicle == vin {
-							log.Debug().Str("key", key).Str("campaignId", campaign.CampaignID).Msg("new cache entry")
-							vinToCampaignCache.Set(key, &campaign, DefaultTTL)
+				for _, vehicle := range group.VINS {
+					if vehicle == vin {
+						log.Debug().Str("key", key).Str("campaignId", campaign.CampaignID).Msg("new cache entry")
+						//vinToCampaignCache.Set(key, &campaign, DefaultTTL)
 
-							return campaign.CampaignID
-						}
+						return campaign.CampaignID
 					}
-				} else {
-					log.Warn().Str("vehicle_group_id", group.VehicleGroupID).Msg("vehicle_group not found")
 				}
 			} else {
-				log.Warn().Str("campaignId", campaign.CampaignID).Msg("campaign not found")
+				log.Warn().Str("vehicle_group_id", group.VehicleGroupID).Msg("vehicle_group not found")
 			}
+		} else {
+			log.Warn().Str("campaignId", campaign.CampaignID).Msg("campaign not found")
 		}
-		return ""
 	}
-
 	return ""
+	//}
+
+	//return ""
 }
 
 func lookupVehicle(vin string) *drogue.Device {
@@ -262,6 +274,7 @@ func lookupVehicle(vin string) *drogue.Device {
 	return &device
 }
 
+/*
 func refreshCampaignMappings() {
 	mu.Lock()
 	defer mu.Unlock()
@@ -284,6 +297,7 @@ func refreshCampaignMappings() {
 		log.Warn().Msg("no zone-to-campaign mapping found")
 	}
 }
+*/
 
 func setup() *echo.Echo {
 	// create a new router instance

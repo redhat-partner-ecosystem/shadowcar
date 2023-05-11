@@ -12,7 +12,6 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/redhat-partner-ecosystem/shadowcar/internal"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/txsvc/stdlib/v2"
@@ -88,11 +87,7 @@ func init() {
 	stdlib.Seed(stdlib.Now())
 
 	// setup logging
-	if internal.GetBool(LOG_LEVEL_DEBUG, false) {
-		zerolog.SetGlobalLevel(zerolog.TraceLevel)
-	} else {
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	}
+	internal.SetLogLevel()
 
 	if internal.GetBool(LOG_LEVEL_MQTT_TRACE, false) {
 		mqtt.CRITICAL = stdlog.New(os.Stdout, "[CRIT] ", 0)

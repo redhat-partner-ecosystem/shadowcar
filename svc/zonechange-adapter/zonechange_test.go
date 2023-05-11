@@ -26,6 +26,7 @@ func init() {
 	//zerolog.SetGlobalLevel(zerolog.InfoLevel)
 }
 
+/*
 func TestInit(t *testing.T) {
 	assert.NotNil(t, vinToCampaignCache)
 	assert.NotNil(t, cm)
@@ -33,6 +34,7 @@ func TestInit(t *testing.T) {
 
 	assert.NotEmpty(t, zoneToCampaignMapping)
 }
+*/
 
 func TestLogLevel(t *testing.T) {
 	//debugEnabled := internal.GetBool(LOG_LEVEL_DEBUG, false)
