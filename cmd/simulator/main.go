@@ -26,22 +26,13 @@ const (
 	carPostionQueue string = "car"        // channel for position data
 	carMetricsQueue string = "carMetrics" // channel for other telemetry e.g. speed
 
-	// integration topics
-	deviceToCloudTopic string = "app/bobbycar"
-	cloudToDeviceTopic string = "command/%s/%s/%s"
-
 	// authentication
 	defaultDevicePassword = "car123456"
-	//defaultAdminUser      = "admin"
-	//defaultAdminToken     = "drg_0r0qEl_gkhoMbI4FKRNDUGh2o1Xtart4FPcS63pEX5Q"
 
 	// MQTT QoS, see https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/
 	AtMostOnce  byte = 0
 	AtLeastOnce byte = 1
 	ExactlyOnce byte = 2
-
-	LOG_LEVEL_DEBUG      = "log_level_debug"
-	LOG_LEVEL_MQTT_TRACE = "log_level_mqtt_trace"
 )
 
 var (
@@ -89,7 +80,7 @@ func init() {
 	// setup logging
 	internal.SetLogLevel()
 
-	if internal.GetBool(LOG_LEVEL_MQTT_TRACE, false) {
+	if log.Trace().Enabled() {
 		mqtt.CRITICAL = stdlog.New(os.Stdout, "[CRIT] ", 0)
 		mqtt.WARN = stdlog.New(os.Stdout, "[WARN]  ", 0)
 		mqtt.DEBUG = stdlog.New(os.Stdout, "[DEBUG] ", 0)
@@ -143,18 +134,6 @@ func main() {
 	// simulate cars ...
 	vin := stdlib.GetString("VIN", VIN)
 	go simulate(vin, application)
-
-	/*
-		if debug {
-			// listen for messages on the integration endpoint
-			cl := createMqttClient(MqttIntegrationProtocol, MqttIntegrationHost, MqttIntegrationPort, application, defaultAdminUser, defaultAdminToken)
-			if token := cl.Connect(); token.Wait() && token.Error() != nil {
-				log.Fatal().Err(token.Error()).Msg(token.Error().Error())
-			}
-			defer cl.Disconnect(250)
-			cl.Subscribe(deviceToCloudTopic, AtLeastOnce, receiveMqttMsg)
-		}
-	*/
 
 	// background stuff goes here ...
 	for !shutdown {
