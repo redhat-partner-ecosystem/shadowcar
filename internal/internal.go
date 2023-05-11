@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/rs/xid"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/txsvc/stdlib/v2"
@@ -23,6 +24,8 @@ const (
 	AtMostOnce  byte = 0
 	AtLeastOnce byte = 1
 	ExactlyOnce byte = 2
+
+	LOG_LEVEL = "log_level"
 
 	PROMETHEUS_HOST         = "prometheus_host"
 	PROMETHEUS_METRICS_PATH = "prometheus_metrics_path"
@@ -75,6 +78,18 @@ func GetBool(env string, def bool) bool {
 		return true
 	}
 	return false
+}
+
+func SetLogLevel() {
+	// setup logging
+	log_level := strings.ToLower(stdlib.GetString(LOG_LEVEL, ""))
+	if log_level == "trace" {
+		zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	} else if log_level == "debug" {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
 }
 
 func CreateMqttClient(protocol, host, port, clientID, username, password string) mqtt.Client {

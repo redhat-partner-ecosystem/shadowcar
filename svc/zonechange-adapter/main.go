@@ -15,7 +15,6 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	mcache "github.com/OrlovEvgeny/go-mcache"
@@ -40,8 +39,6 @@ const (
 	KAFKA_SERVICE      = "kafka_service"
 	KAFKA_SERVICE_PORT = "kafka_service_port"
 	KAFKA_AUTO_OFFSET  = "auto_offset"
-
-	LOG_LEVEL_DEBUG = "log_level_debug"
 
 	DefaultTTL = time.Minute * 1
 )
@@ -68,11 +65,7 @@ var (
 func init() {
 
 	// setup logging
-	if internal.GetBool(LOG_LEVEL_DEBUG, false) {
-		zerolog.SetGlobalLevel(zerolog.TraceLevel)
-	} else {
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	}
+	internal.SetLogLevel()
 
 	// setup Kafka client
 	clientID := stdlib.GetString(CLIENT_ID, "kafka-listener-svc")
@@ -183,7 +176,10 @@ func handleZoneChange(evt *internal.ZoneChangeEvent) {
 
 	// only do sth in case a car ENTERS a zone
 	if evt.NextZoneID != "" {
-		var age int64 = stdlib.Now()
+		//nextZone := evt.NextZoneID
+
+		var age int64 = 1000 // just > zone_change_delay
+
 		if last, ok := device.GetAnnotation("lastUpdate"); ok {
 			lastUpdate, _ := strconv.ParseInt(last, 0, 64)
 			age = stdlib.Now() - lastUpdate

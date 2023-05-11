@@ -209,7 +209,7 @@ func simulate(vin, application string) {
 		lastTimestamp = df.EventTime
 
 		// drive slowly ...
-		time.Sleep(5 * time.Second)
+		time.Sleep(4 * time.Second)
 	}
 
 	log.Warn().Msg(fmt.Sprintf("stopping car with VIN='%s'", vin))
