@@ -10,7 +10,11 @@ import (
 	"github.com/txsvc/stdlib/v2"
 )
 
-//APIKey    string `json:"api_key,omitempty"` // aka ClientID
+const (
+	ClientID     = "CLIENT_ID"
+	ClientSecret = "CLIENT_SECRET"
+	AccessToken  = "ACCESS_TOKEN"
+)
 
 type (
 	Credentials struct {
@@ -20,6 +24,19 @@ type (
 		Expires   int64  `json:"expires,omitempty"`    // 0 = never, > 0 = unix timestamp, < 0 = invalid
 	}
 )
+
+func CredentialsFromEnv() *Credentials {
+
+	c := &Credentials{
+		Token: stdlib.GetString(AccessToken, ""),
+	}
+	if c.Token == "" {
+		c.UserID = stdlib.GetString(ClientID, "")
+		c.Token = stdlib.GetString(ClientSecret, "")
+	}
+
+	return c
+}
 
 // Clone returns a deep copy of the credentials
 func (c *Credentials) Clone() *Credentials {

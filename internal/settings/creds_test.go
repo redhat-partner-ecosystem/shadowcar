@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/txsvc/stdlib/v2"
 )
 
 func TestCloneCredentials(t *testing.T) {
@@ -44,4 +46,13 @@ func TestExpiration(t *testing.T) {
 
 	cred.Expires = 0
 	assert.False(t, cred.Expired())
+}
+
+func TestCredentialsFromEnv(t *testing.T) {
+	assert.NotEmpty(t, stdlib.GetString(ClientID, ""))
+	assert.NotEmpty(t, stdlib.GetString(ClientSecret, ""))
+
+	cred := CredentialsFromEnv()
+	assert.NotNil(t, cred)
+	assert.NotEmpty(t, cred)
 }

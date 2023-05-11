@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	DrogueHttpEndpoint = "DROGUE_HTTP_ENDPOINT"
+	DrogueHttpEndpoint            = "DROGUE_HTTP_ENDPOINT"
+	DrogueHttpIntegrationEndpoint = "DROGUE_HTTP_INTEGRATION_ENDPOINT"
 
 	DrogueClientID     = "DROGUE_CLIENT_ID"
 	DrogueClientSecret = "DROGUE_CLIENT_SECRET"
@@ -34,7 +35,7 @@ func NewDrogueClient(ctx context.Context, opts ...internal.ClientOption) (*Drogu
 	ds := &settings.DialSettings{
 		Endpoint:    stdlib.GetString(DrogueHttpEndpoint, ""),
 		UserAgent:   DrogueApiAgent,
-		Credentials: credentials(),
+		Credentials: LoadCredentials(),
 	}
 
 	// apply options
@@ -49,7 +50,7 @@ func NewDrogueClient(ctx context.Context, opts ...internal.ClientOption) (*Drogu
 		return nil, fmt.Errorf("missing DROGUE_HTTP_ENDPOINT")
 	}
 
-	if ds.Credentials.UserID != "" && ds.Credentials.Token == "" {
+	if ds.Credentials.UserID == "" && ds.Credentials.Token == "" {
 		return nil, fmt.Errorf("missing DROGUE_CLIENT_SECRET")
 	}
 
@@ -62,7 +63,7 @@ func NewDrogueClient(ctx context.Context, opts ...internal.ClientOption) (*Drogu
 	}, nil
 }
 
-func credentials() *settings.Credentials {
+func LoadCredentials() *settings.Credentials {
 	c := &settings.Credentials{
 		Token: stdlib.GetString(DrogueAccessToken, ""),
 	}

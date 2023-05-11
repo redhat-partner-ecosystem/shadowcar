@@ -49,11 +49,6 @@ func NewCampaignManagerClient(ctx context.Context, opts ...internal.ClientOption
 		return nil, fmt.Errorf("missing CAMPAIGN_MANAGER_HTTP_ENDPOINT")
 	}
 
-	/*
-		if ds.Credentials.UserID != "" && ds.Credentials.Token == "" {
-			return nil, fmt.Errorf("missing DROGUE_CLIENT_SECRET")
-		}
-	*/
 	return &CampaignManagerClient{
 		rc: internal.RestClient{
 			HttpClient: httpClient,

@@ -1,16 +1,15 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
-	stdlog "log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/redhat-partner-ecosystem/shadowcar/internal"
 	"github.com/rs/zerolog/log"
 
@@ -80,12 +79,14 @@ func init() {
 	// setup logging
 	internal.SetLogLevel()
 
-	if log.Trace().Enabled() {
-		mqtt.CRITICAL = stdlog.New(os.Stdout, "[CRIT] ", 0)
-		mqtt.WARN = stdlog.New(os.Stdout, "[WARN]  ", 0)
-		mqtt.DEBUG = stdlog.New(os.Stdout, "[DEBUG] ", 0)
-	}
-	mqtt.ERROR = stdlog.New(os.Stdout, "[ERROR] ", 0)
+	/*
+		if log.Trace().Enabled() {
+			mqtt.CRITICAL = stdlog.New(os.Stdout, "[CRIT] ", 0)
+			mqtt.WARN = stdlog.New(os.Stdout, "[WARN]  ", 0)
+			mqtt.DEBUG = stdlog.New(os.Stdout, "[DEBUG] ", 0)
+		}
+		mqtt.ERROR = stdlog.New(os.Stdout, "[ERROR] ", 0)
+	*/
 
 	// setup shutdown handling
 	quit := make(chan os.Signal, 1)
@@ -142,26 +143,42 @@ func main() {
 }
 
 func simulate(vin, application string) {
-	user := fmt.Sprintf("%s-gw@%s", vin, application)
+	//user := fmt.Sprintf("%s-gw@%s", vin, application)
 	log.Info().Msg(fmt.Sprintf("simulating car with VIN='%s'", vin))
 
-	// connect to the endpoint gateway
+	/*
+		// connect to the endpoint gateway
 
-	cl := createMqttClient(MqttEndpointProtocol, MqttEndpointHost, MqttEndpointPort, vin, user, defaultDevicePassword)
-	//cl := createMqttClient(MqttEndpointProtocol, MqttEndpointHost, MqttEndpointPort, vin, "admin", "drg_010oCl_icBEpmBpVQS6YUfcq3te5mo5ILPOeelYpDY")
-	if token := cl.Connect(); token.Wait() && token.Error() != nil {
-		fmt.Println("BP1")
-		log.Fatal().Err(token.Error()).Msg(token.Error().Error())
-	}
-	defer cl.Disconnect(250)
+		cl := createMqttClient(MqttEndpointProtocol, MqttEndpointHost, MqttEndpointPort, vin, user, defaultDevicePassword)
+		//cl := createMqttClient(MqttEndpointProtocol, MqttEndpointHost, MqttEndpointPort, vin, "admin", "drg_010oCl_icBEpmBpVQS6YUfcq3te5mo5ILPOeelYpDY")
+		if token := cl.Connect(); token.Wait() && token.Error() != nil {
+			fmt.Println("BP1")
+			log.Fatal().Err(token.Error()).Msg(token.Error().Error())
+		}
+		defer cl.Disconnect(250)
 
-	// listen for commands
-	// see https://book.drogue.io/drogue-cloud/dev/user-guide/endpoint-mqtt.html#_subscribe_to_commands
-	topic := "command/inbox//#"
-	if token := cl.Subscribe(topic, AtLeastOnce, receiveCommand); token.Wait() && token.Error() != nil {
-		fmt.Println("BP2")
-		log.Fatal().Err(token.Error()).Msg(token.Error().Error())
+		// listen for commands
+		// see https://book.drogue.io/drogue-cloud/dev/user-guide/endpoint-mqtt.html#_subscribe_to_commands
+		topic := "command/inbox//#"
+		if token := cl.Subscribe(topic, AtLeastOnce, receiveCommand); token.Wait() && token.Error() != nil {
+			fmt.Println("BP2")
+			log.Fatal().Err(token.Error()).Msg(token.Error().Error())
+		}
+	*/
+
+	// connect to the HTTP endpoint
+	cl, err := internal.NewRestClient(context.TODO())
+	if err != nil {
+		log.Fatal().Err(err).Msg(err.Error())
 	}
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true, // server certificate is not trusted
+			},
+		},
+	}
+	cl.SetClient(client)
 
 	// main event loop
 
@@ -171,10 +188,17 @@ func simulate(vin, application string) {
 		// simulate the car driving
 		df := drive(vin, tick, lastTimestamp)
 
-		// publish coordinates
-		payload, _ := json.Marshal(df)
-		if token := cl.Publish(fmt.Sprintf("%s/%s", carPostionQueue, df.VIN), AtMostOnce, false, payload); token.Wait() && token.Error() != nil {
-			log.Fatal().Err(token.Error()).Msg(token.Error().Error())
+		/*
+			// publish coordinates
+			payload, _ := json.Marshal(df)
+			if token := cl.Publish(fmt.Sprintf("%s/%s", carPostionQueue, df.VIN), AtMostOnce, false, payload); token.Wait() && token.Error() != nil {
+				log.Fatal().Err(token.Error()).Msg(token.Error().Error())
+			}
+		*/
+
+		status, err := cl.POST("/v1/car", df, nil)
+		if status != http.StatusAccepted || err != nil {
+			log.Fatal().Err(err).Int("http", status).Msg("no push")
 		}
 
 		//if log.Debug().Enabled() {
@@ -204,6 +228,7 @@ func drive(vin string, tick int, timestamp int64) Coordinates {
 	}
 }
 
+/*
 func receiveCommand(client mqtt.Client, msg mqtt.Message) {
 	log.Logger.Info().Str("topic", msg.Topic()).Str("cmd", string(msg.Payload())).Msg(fmt.Sprintf("message id %d", msg.MessageID()))
 }
@@ -244,3 +269,4 @@ func createMqttClient(protocol, host, port, clientID, username, password string)
 	// create a client
 	return mqtt.NewClient(opts)
 }
+*/

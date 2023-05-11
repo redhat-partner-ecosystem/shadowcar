@@ -14,10 +14,17 @@ import (
 	"github.com/PuerkitoBio/rehttp"
 	"github.com/rs/zerolog/log"
 
+	"github.com/txsvc/apikit/config"
+	"github.com/txsvc/stdlib/v2"
+
 	"github.com/redhat-partner-ecosystem/shadowcar/internal/settings"
 )
 
 const (
+	HttpEndpoint = "HTTP_ENDPOINT"
+
+	ApiAgent = "apikit/rest"
+
 	// format error messages
 	MsgStatus = "%s. status: %d"
 )
@@ -46,30 +53,39 @@ var (
 	ctxKeyRequestStart = &contextKey{"RequestStart"}
 )
 
-/*
-func NewRestClient(ds *settings.DialSettings) *RestClient {
-	var _ds *settings.DialSettings
+func NewRestClient(ctx context.Context, opts ...ClientOption) (*RestClient, error) {
+	ds := &settings.DialSettings{
+		Endpoint:    stdlib.GetString(HttpEndpoint, ""),
+		UserAgent:   ApiAgent,
+		Credentials: settings.CredentialsFromEnv(),
+	}
 
-	httpClient := NewLoggingTransport(http.DefaultTransport)
-
-	// create or clone the settings
-	if ds != nil {
-		c := ds.Clone()
-		_ds = &c
-	} else {
-		_ds = config.GetConfig().Settings()
-		if _ds.Credentials == nil {
-			_ds.Credentials = &settings.Credentials{} // just provide something to prevent NPEs further down
+	// apply options
+	if len(opts) > 0 {
+		for _, opt := range opts {
+			opt.Apply(ds)
 		}
 	}
 
-	return &RestClient{
-		HttpClient: httpClient,
-		Settings:   _ds,
-		Trace:      stdlib.GetString(config.ForceTraceENV, ""),
+	// do some basic validation
+	if ds.Endpoint == "" {
+		return nil, fmt.Errorf("missing HTTP_ENDPOINT")
 	}
+
+	if ds.Credentials.UserID == "" && ds.Credentials.Token == "" {
+		return nil, fmt.Errorf("missing CLIENT_SECRET")
+	}
+
+	return &RestClient{
+		HttpClient: NewLoggingTransport(http.DefaultTransport),
+		Settings:   ds,
+		Trace:      stdlib.GetString(config.ForceTraceENV, ""),
+	}, nil
 }
-*/
+
+func (c *RestClient) SetClient(cl *http.Client) {
+	c.HttpClient = cl
+}
 
 // GET is used to request data from the API. No payload, only queries!
 func (c *RestClient) GET(uri string, response interface{}) (int, error) {
