@@ -237,7 +237,7 @@ func refreshVehicleCampaignStatus() {
 						device.SetAnnotation("campaignStatus", e.Status)
 						device.SetLabel("zone", campaignZoneMapping[e.CampaignID])
 
-						if status, _ := dm.UpdateDevice(stdlib.GetString(APPLICATION_ID, "bobbycar"), device, false); status != http.StatusNoContent {
+						if status, _ := dm.UpdateDevice(stdlib.GetString(APPLICATION_ID, "bobbycar"), device, false); status == http.StatusNoContent {
 							log.Trace().Str("vin", e.VIN).Str("campaign", e.CampaignID).Str("executionId", e.CampaignExecutionID).Msg(e.Status)
 						} else {
 							log.Error().Str("vin", e.VIN).Str("campaign", e.CampaignID).Str("executionId", e.CampaignExecutionID).Int("http", status).Msg("device not updated")
