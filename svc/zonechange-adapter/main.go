@@ -194,16 +194,17 @@ func handleZoneChange(evt *internal.ZoneChangeEvent) {
 
 			currentCampaign, _ := device.GetAnnotation("campaign")
 			campaign := nextCampaignMapping[currentCampaign]
+			zone := campaignZoneMapping[campaign]
 
-			log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Int64("age", age).Msg("executing campaign")
+			log.Info().Str("vin", evt.CarID).Str("zone", zone).Str("campaign", campaign).Int64("age", age).Msg("executing campaign")
 
 			err := cm.ExecuteCampaign(campaign)
 
 			if err != nil {
-				log.Error().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Err(err).Msg("execute campaign failed")
+				log.Error().Str("vin", evt.CarID).Str("zone", zone).Str("campaign", campaign).Err(err).Msg("execute campaign failed")
 			} else {
 				device.Metadata.Generation++
-				device.SetLabel("zone", campaignZoneMapping["campaign"])
+				device.SetLabel("zone", zone)
 				device.SetAnnotation("lastCampaignExecution", fmt.Sprintf("%d", stdlib.Now()))
 				device.SetAnnotation("campaign", campaign)
 
@@ -211,7 +212,7 @@ func handleZoneChange(evt *internal.ZoneChangeEvent) {
 			}
 
 		} else {
-			log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Int64("age", age).Msg("ignoring zone trigger")
+			log.Info().Str("vin", evt.CarID).Int64("age", age).Msg("ignoring zone trigger")
 		}
 	}
 }
