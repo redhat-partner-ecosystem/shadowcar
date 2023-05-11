@@ -39,4 +39,6 @@ type (
 		Name           string   `json:"name,omitempty"`
 		VINS           []string `json:"vins,omitempty"`
 	}
+
+	VehicleGroups []VehicleGroup
 )

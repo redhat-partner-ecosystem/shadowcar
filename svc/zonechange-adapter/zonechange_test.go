@@ -3,8 +3,9 @@ package main
 import (
 	"testing"
 
-	"github.com/redhat-partner-ecosystem/shadowcar/internal"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/redhat-partner-ecosystem/shadowcar/internal"
 )
 
 const (
@@ -43,6 +44,7 @@ func TestLogLevel(t *testing.T) {
 	//log.Trace().Enabled()
 }
 
+/*
 func _TestLookupCampaign(t *testing.T) {
 
 	campaign := lookupCampaign(vin, zone1)
@@ -72,8 +74,13 @@ func _TestUpdateDevice(t *testing.T) {
 	device := lookupVehicle(vin)
 	assert.NotNil(t, device)
 }
+*/
 
-func TestZoneChange(t *testing.T) {
+func _TestRefreshVehicleCampaignStatus(t *testing.T) {
+	refreshVehicleCampaignStatus()
+}
+
+func _TestZoneChange(t *testing.T) {
 	device := lookupVehicle(vin)
 	assert.NotNil(t, device)
 

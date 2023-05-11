@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
@@ -16,8 +15,6 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 
 	"github.com/rs/zerolog/log"
-
-	//mcache "github.com/OrlovEvgeny/go-mcache"
 
 	"github.com/txsvc/apikit"
 	"github.com/txsvc/apikit/api"
@@ -43,23 +40,10 @@ const (
 	DefaultTTL = time.Minute * 1
 )
 
-/*
-type (
-	ZoneMapping struct {
-		Zone      string   `json:"zone,omitempty"`
-		Campaigns []string `json:"campaigns,omitempty"`
-	}
-
-	ZoneMap []ZoneMapping
-)
-*/
-
 var (
-	//zoneToCampaignMapping map[string][]string // zone -> campaigns
-	//vinToCampaignCache    *mcache.CacheDriver // campaign cache
-	campaigns []string
+	nextCampaignMapping map[string]string // zone -> campaigns
+	campaigns           []string
 
-	mu sync.Mutex
 	kc *kafka.Consumer
 	cm *ota.CampaignManagerClient
 	dm *drogue.DrogueClient
@@ -97,9 +81,6 @@ func init() {
 	}
 	kc = _kc
 
-	// setup other data structures
-	// vinToCampaignCache = mcache.New()
-
 	// campaign manager client
 	cm, err = ota.NewCampaignManagerClient(context.TODO())
 	if err != nil {
@@ -112,22 +93,29 @@ func init() {
 		log.Fatal().Err(err).Msg(err.Error())
 	}
 
+	// HACK
 	campaigns = make([]string, 4)
 	campaigns[0] = "aaaaaaaa-0000-0000-0000-000000000000" // Summit Adaptive Autosar Update A
 	campaigns[1] = "bbbbbbbb-0000-0000-0000-000000000000" // Summit Adaptive Autosar Update B
 	campaigns[2] = "00000000-0000-0000-0000-aaaaaaaaaaaa" // VECS Adaptive Autosar Update A
 	campaigns[3] = "00000000-0000-0000-0000-bbbbbbbbbbbb" // VECS Adaptive Autosar Update B
 
-	/*
-		// setup campaigns and other structs ...
+	nextCampaignMapping = make(map[string]string)
+	nextCampaignMapping["aaaaaaaa-0000-0000-0000-000000000000"] = "bbbbbbbb-0000-0000-0000-000000000000"
+	nextCampaignMapping["bbbbbbbb-0000-0000-0000-000000000000"] = "aaaaaaaa-0000-0000-0000-000000000000"
+	nextCampaignMapping["00000000-0000-0000-0000-aaaaaaaaaaaa"] = "00000000-0000-0000-0000-bbbbbbbbbbbb"
+	nextCampaignMapping["00000000-0000-0000-0000-bbbbbbbbbbbb"] = "00000000-0000-0000-0000-aaaaaaaaaaaa"
+	// END HACK
 
-		go func() {
-			for {
-				refreshCampaignMappings()
-				time.Sleep(30 * time.Second) // refesh every 30 sec
-			}
-		}()
-	*/
+	// setup campaigns and other structs ...
+
+	go func() {
+		for {
+			refreshVehicleCampaignStatus()
+			time.Sleep(60 * time.Second) // refesh every 60 sec
+		}
+	}()
+
 }
 
 func main() {
@@ -186,7 +174,6 @@ func handleZoneChange(evt *internal.ZoneChangeEvent) {
 
 	// only do sth in case a car ENTERS a zone
 	if evt.NextZoneID != "" {
-		//nextZone := evt.NextZoneID
 
 		var age int64 = 1000 // just > zone_change_delay
 
@@ -197,73 +184,28 @@ func handleZoneChange(evt *internal.ZoneChangeEvent) {
 
 		if age > stdlib.GetInt("zone_change_delay", 60) {
 
-			campaign := lookupCampaign(evt.CarID, evt.NextZoneID)
+			currentCampaign, _ := device.GetAnnotation("campaign")
+			campaign := nextCampaignMapping[currentCampaign]
 
-			if campaign != "" {
-				if currentCampaign, _ := device.GetAnnotation("campaign"); currentCampaign == campaign {
-					log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Int64("age", age).Msg("skipping execute campaign")
-				} else {
-					log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Int64("age", age).Msg("executing campaign")
+			log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Int64("age", age).Msg("executing campaign")
 
-					err := cm.ExecuteCampaign(campaign)
+			err := cm.ExecuteCampaign(campaign)
 
-					if err != nil {
-						log.Error().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Err(err).Msg("execute campaign failed")
-					} else {
-						device.Metadata.Generation++
-						device.SetLabel("zone", evt.NextZoneID)
-						device.SetAnnotation("lastUpdate", fmt.Sprintf("%d", stdlib.Now()))
-						device.SetAnnotation("campaign", campaign)
-
-						dm.UpdateDevice(stdlib.GetString(APPLICATION_ID, "bobbycar"), device, false)
-					}
-				}
+			if err != nil {
+				log.Error().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Err(err).Msg("execute campaign failed")
 			} else {
-				log.Warn().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Msg("no campaign found")
+				device.Metadata.Generation++
+				device.SetLabel("zone", evt.NextZoneID)
+				device.SetAnnotation("lastUpdate", fmt.Sprintf("%d", stdlib.Now()))
+				device.SetAnnotation("campaign", campaign)
+
+				dm.UpdateDevice(stdlib.GetString(APPLICATION_ID, "bobbycar"), device, false)
 			}
+
 		} else {
 			log.Info().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Int64("age", age).Msg("ignoring zone trigger")
 		}
 	}
-}
-
-func lookupCampaign(vin, zone string) string {
-	key := fmt.Sprintf("%s-%s", vin, zone)
-
-	/*
-		if c, ok := vinToCampaignCache.Get(key); ok {
-			return c.(*ota.Campaign).CampaignID
-		}
-	*/
-
-	// nothing in the cache, query the campaign manager
-
-	//if campaigns, ok := zoneToCampaignMapping[zone]; ok {
-	// find the car ...
-	for _, campaignId := range campaigns {
-		status, campaign := cm.GetCampaign(campaignId)
-		if status == http.StatusOK {
-			status, group := cm.GetVehicleGroup(campaign.VehicleGroupID)
-			if status == http.StatusOK {
-				for _, vehicle := range group.VINS {
-					if vehicle == vin {
-						log.Debug().Str("key", key).Str("campaignId", campaign.CampaignID).Msg("new cache entry")
-						//vinToCampaignCache.Set(key, &campaign, DefaultTTL)
-
-						return campaign.CampaignID
-					}
-				}
-			} else {
-				log.Warn().Str("vehicle_group_id", group.VehicleGroupID).Msg("vehicle_group not found")
-			}
-		} else {
-			log.Warn().Str("campaignId", campaign.CampaignID).Msg("campaign not found")
-		}
-	}
-	return ""
-	//}
-
-	//return ""
 }
 
 func lookupVehicle(vin string) *drogue.Device {
@@ -274,30 +216,30 @@ func lookupVehicle(vin string) *drogue.Device {
 	return &device
 }
 
-/*
-func refreshCampaignMappings() {
-	mu.Lock()
-	defer mu.Unlock()
+func refreshVehicleCampaignStatus() {
+	for _, campaignId := range campaigns {
+		status, exec := cm.GetCampaignExecution(campaignId)
+		if status == http.StatusOK {
+			if len(exec) > 0 {
+				for _, e := range exec {
+					device := lookupVehicle(e.VIN)
+					if device != nil {
+						device.SetAnnotation("campaign", e.CampaignID)
+						device.SetAnnotation("campaignStatus", e.Status)
 
-	// setup campaigns etc ...
-	campaignsJSON := stdlib.GetString("campaigns", "")
-	if campaignsJSON != "" {
-		var zm ZoneMap
-		err := json.Unmarshal([]byte(campaignsJSON), &zm)
-		if err != nil {
-			log.Err(err).Msg("")
-		}
+						dm.UpdateDevice(stdlib.GetString(APPLICATION_ID, "bobbycar"), device, false)
 
-		// new map & values ...
-		zoneToCampaignMapping = make(map[string][]string, len(zm))
-		for _, z := range zm {
-			zoneToCampaignMapping[z.Zone] = z.Campaigns
+						log.Trace().Str("vin", e.VIN).Str("campaign", e.CampaignID).Str("executionId", e.CampaignExecutionID).Msg(e.Status)
+					} else {
+						log.Warn().Str("vin", e.VIN).Msg("device not found")
+					}
+				}
+			}
 		}
-	} else {
-		log.Warn().Msg("no zone-to-campaign mapping found")
 	}
 }
-*/
+
+// http endpoint setup
 
 func setup() *echo.Echo {
 	// create a new router instance
@@ -316,9 +258,11 @@ func setup() *echo.Echo {
 }
 
 func shutdown(ctx context.Context, a *apikit.App) error {
-	// TODO: implement your own stuff here
+	kc.Close() // close kafka listener
 	return nil
 }
+
+// handler
 
 func getDeviceEndpoint(c echo.Context) error {
 	applicationId := c.Param("applicationid")

@@ -118,6 +118,16 @@ func (c *CampaignManagerClient) ExecuteCampaign(campaignId string) error {
 	return nil
 }
 
+func (c *CampaignManagerClient) GetVehicleGroups() (int, VehicleGroups) {
+	var resp VehicleGroups
+
+	if status, _ := c.rc.GET("/vehicle_group", &resp); status != http.StatusOK {
+		return status, VehicleGroups{}
+	}
+
+	return http.StatusOK, resp
+}
+
 func (c *CampaignManagerClient) GetVehicleGroup(vehicleGroupId string) (int, VehicleGroup) {
 	var resp VehicleGroup
 

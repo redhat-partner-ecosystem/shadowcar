@@ -132,6 +132,20 @@ func TestExecuteCampaign(t *testing.T) {
 	}
 }
 
+func TestGetVehicleGroups(t *testing.T) {
+
+	cl, err := NewCampaignManagerClient(context.TODO())
+	assert.NotNil(t, cl)
+	assert.NoError(t, err)
+
+	status, resp := cl.GetVehicleGroups()
+
+	assert.NotNil(t, resp)
+	assert.NotEmpty(t, resp)
+	assert.Equal(t, http.StatusOK, status)
+
+}
+
 func TestGetVehicleGroup(t *testing.T) {
 
 	cl, err := NewCampaignManagerClient(context.TODO())
