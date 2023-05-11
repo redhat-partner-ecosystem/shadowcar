@@ -17,7 +17,7 @@ func main() {
 	var devicePassword string
 
 	flag.StringVar(&application, "application", "bobbycar", "Drogue App")
-	flag.StringVar(&deviceName, "name", "foo-device", "Device name")
+	flag.StringVar(&deviceName, "name", "WP0AA2991YS620631", "Device name")
 	flag.StringVar(&devicePassword, "password", "car123456", "Device password")
 
 	cl, err := drogue.NewDrogueClient(context.TODO())

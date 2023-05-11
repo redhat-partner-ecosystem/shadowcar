@@ -32,8 +32,8 @@ const (
 
 	// authentication
 	defaultDevicePassword = "car123456"
-	defaultAdminUser      = "admin"
-	defaultAdminToken     = "drg_0r0qEl_gkhoMbI4FKRNDUGh2o1Xtart4FPcS63pEX5Q"
+	//defaultAdminUser      = "admin"
+	//defaultAdminToken     = "drg_0r0qEl_gkhoMbI4FKRNDUGh2o1Xtart4FPcS63pEX5Q"
 
 	// MQTT QoS, see https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/
 	AtMostOnce  byte = 0
