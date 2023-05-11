@@ -41,8 +41,9 @@ const (
 )
 
 var (
-	nextCampaignMapping map[string]string // zone -> campaigns
-	campaigns           []string
+	campaigns           []string          // list of known campaigns we care about
+	nextCampaignMapping map[string]string // current campaign -> next campaign
+	campaignZoneMapping map[string]string
 
 	kc *kafka.Consumer
 	cm *ota.CampaignManagerClient
@@ -105,6 +106,13 @@ func init() {
 	nextCampaignMapping["bbbbbbbb-0000-0000-0000-000000000000"] = "aaaaaaaa-0000-0000-0000-000000000000"
 	nextCampaignMapping["00000000-0000-0000-0000-aaaaaaaaaaaa"] = "00000000-0000-0000-0000-bbbbbbbbbbbb"
 	nextCampaignMapping["00000000-0000-0000-0000-bbbbbbbbbbbb"] = "00000000-0000-0000-0000-aaaaaaaaaaaa"
+
+	campaignZoneMapping = make(map[string]string)
+	campaignZoneMapping["aaaaaaaa-0000-0000-0000-000000000000"] = "luxoft"
+	campaignZoneMapping["bbbbbbbb-0000-0000-0000-000000000000"] = "redhat"
+	campaignZoneMapping["00000000-0000-0000-0000-aaaaaaaaaaaa"] = "luxoft"
+	campaignZoneMapping["00000000-0000-0000-0000-bbbbbbbbbbbb"] = "redhat"
+
 	// END HACK
 
 	// setup campaigns and other structs ...
@@ -177,9 +185,9 @@ func handleZoneChange(evt *internal.ZoneChangeEvent) {
 
 		var age int64 = 1000 // just > zone_change_delay
 
-		if last, ok := device.GetAnnotation("lastUpdate"); ok {
-			lastUpdate, _ := strconv.ParseInt(last, 0, 64)
-			age = stdlib.Now() - lastUpdate
+		if last, ok := device.GetAnnotation("lastCampaignExecution"); ok {
+			lastCampaignExecution, _ := strconv.ParseInt(last, 0, 64)
+			age = stdlib.Now() - lastCampaignExecution
 		}
 
 		if age > stdlib.GetInt("zone_change_delay", 60) {
@@ -195,8 +203,8 @@ func handleZoneChange(evt *internal.ZoneChangeEvent) {
 				log.Error().Str("vin", evt.CarID).Str("zone", evt.NextZoneID).Str("campaign", campaign).Err(err).Msg("execute campaign failed")
 			} else {
 				device.Metadata.Generation++
-				device.SetLabel("zone", evt.NextZoneID)
-				device.SetAnnotation("lastUpdate", fmt.Sprintf("%d", stdlib.Now()))
+				device.SetLabel("zone", campaignZoneMapping["campaign"])
+				device.SetAnnotation("lastCampaignExecution", fmt.Sprintf("%d", stdlib.Now()))
 				device.SetAnnotation("campaign", campaign)
 
 				dm.UpdateDevice(stdlib.GetString(APPLICATION_ID, "bobbycar"), device, false)
