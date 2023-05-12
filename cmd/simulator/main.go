@@ -20,18 +20,6 @@ const (
 	application = "bobbycar" // the Drogue application
 	VIN         = "test-car1"
 	//VIN = "WBAFR9C59BC270614"
-
-	// endpoints
-	carPostionQueue string = "car"        // channel for position data
-	carMetricsQueue string = "carMetrics" // channel for other telemetry e.g. speed
-
-	// authentication
-	defaultDevicePassword = "car123456"
-
-	// MQTT QoS, see https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/
-	AtMostOnce  byte = 0
-	AtLeastOnce byte = 1
-	ExactlyOnce byte = 2
 )
 
 var (
@@ -78,15 +66,6 @@ func init() {
 
 	// setup logging
 	internal.SetLogLevel()
-
-	/*
-		if log.Trace().Enabled() {
-			mqtt.CRITICAL = stdlog.New(os.Stdout, "[CRIT] ", 0)
-			mqtt.WARN = stdlog.New(os.Stdout, "[WARN]  ", 0)
-			mqtt.DEBUG = stdlog.New(os.Stdout, "[DEBUG] ", 0)
-		}
-		mqtt.ERROR = stdlog.New(os.Stdout, "[ERROR] ", 0)
-	*/
 
 	// setup shutdown handling
 	quit := make(chan os.Signal, 1)
@@ -146,26 +125,6 @@ func simulate(vin, application string) {
 	//user := fmt.Sprintf("%s-gw@%s", vin, application)
 	log.Info().Msg(fmt.Sprintf("simulating car with VIN='%s'", vin))
 
-	/*
-		// connect to the endpoint gateway
-
-		cl := createMqttClient(MqttEndpointProtocol, MqttEndpointHost, MqttEndpointPort, vin, user, defaultDevicePassword)
-		//cl := createMqttClient(MqttEndpointProtocol, MqttEndpointHost, MqttEndpointPort, vin, "admin", "drg_010oCl_icBEpmBpVQS6YUfcq3te5mo5ILPOeelYpDY")
-		if token := cl.Connect(); token.Wait() && token.Error() != nil {
-			fmt.Println("BP1")
-			log.Fatal().Err(token.Error()).Msg(token.Error().Error())
-		}
-		defer cl.Disconnect(250)
-
-		// listen for commands
-		// see https://book.drogue.io/drogue-cloud/dev/user-guide/endpoint-mqtt.html#_subscribe_to_commands
-		topic := "command/inbox//#"
-		if token := cl.Subscribe(topic, AtLeastOnce, receiveCommand); token.Wait() && token.Error() != nil {
-			fmt.Println("BP2")
-			log.Fatal().Err(token.Error()).Msg(token.Error().Error())
-		}
-	*/
-
 	// connect to the HTTP endpoint
 	cl, err := internal.NewRestClient(context.TODO())
 	if err != nil {
@@ -188,22 +147,12 @@ func simulate(vin, application string) {
 		// simulate the car driving
 		df := drive(vin, tick, lastTimestamp)
 
-		/*
-			// publish coordinates
-			payload, _ := json.Marshal(df)
-			if token := cl.Publish(fmt.Sprintf("%s/%s", carPostionQueue, df.VIN), AtMostOnce, false, payload); token.Wait() && token.Error() != nil {
-				log.Fatal().Err(token.Error()).Msg(token.Error().Error())
-			}
-		*/
-
 		status, err := cl.POST("/v1/car", df, nil)
 		if status != http.StatusAccepted || err != nil {
 			log.Fatal().Err(err).Int("http", status).Msg("no push")
 		}
 
-		//if log.Debug().Enabled() {
 		log.Debug().Str("vin", vin).Str("pos", df.String()).Msg(fmt.Sprintf("message #%d", tick))
-		//}
 
 		// housekeeping
 		tick++
@@ -218,7 +167,7 @@ func simulate(vin, application string) {
 
 func drive(vin string, tick int, timestamp int64) Coordinates {
 	// simulate driving by sending predefined coordinates
-	idx := tick % 10
+	idx := tick % len(gpx)
 	return Coordinates{
 		VIN:       vin,
 		EventTime: stdlib.Now(),
@@ -227,46 +176,3 @@ func drive(vin string, tick int, timestamp int64) Coordinates {
 		Long:      gpx[idx][1],
 	}
 }
-
-/*
-func receiveCommand(client mqtt.Client, msg mqtt.Message) {
-	log.Logger.Info().Str("topic", msg.Topic()).Str("cmd", string(msg.Payload())).Msg(fmt.Sprintf("message id %d", msg.MessageID()))
-}
-
-func receiveMqttMsg(client mqtt.Client, msg mqtt.Message) {
-	log.Logger.Info().Str("topic", msg.Topic()).Str("body", string(msg.Payload())).Msg(fmt.Sprintf("message id %d", msg.MessageID()))
-}
-
-func createMqttClient(protocol, host, port, clientID, username, password string) mqtt.Client {
-	// setup and configuration
-	broker := fmt.Sprintf("%s://%s:%s", protocol, host, port)
-	opts := mqtt.NewClientOptions().AddBroker(broker)
-
-	opts.SetCleanSession(true)
-	opts.SetClientID(clientID)
-	opts.SetConnectTimeout(10 * time.Second)
-	opts.SetKeepAlive(30 * time.Second)
-	opts.SetPingTimeout(5 * time.Second)
-
-	opts.SetDefaultPublishHandler(func(client mqtt.Client, msg mqtt.Message) {
-		log.Logger.Info().Str("topic", msg.Topic()).Str("body", string(msg.Payload())).Msg(fmt.Sprintf("un-handled message id %d", msg.MessageID()))
-	})
-	opts.SetOnConnectHandler(func(c mqtt.Client) {
-		log.Logger.Info().Bool("connected", c.IsConnected()).Bool("open", c.IsConnectionOpen()).Msg("onConnect")
-	})
-
-	if username != "" {
-
-		opts.SetUsername(username)
-	}
-	if password != "" {
-		opts.SetPassword(password)
-	}
-	opts.SetTLSConfig(&tls.Config{
-		InsecureSkipVerify: true,
-	})
-
-	// create a client
-	return mqtt.NewClient(opts)
-}
-*/

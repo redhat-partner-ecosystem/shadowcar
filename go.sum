@@ -54,8 +54,6 @@ github.com/Bytom/bytom v1.1.1 h1:oX0oRYpdg3V144YjBhUsMRincwX5WRO9oIdeHd75q1Y=
 github.com/Bytom/bytom v1.1.1/go.mod h1:7blSeEistEQPe5QkLRcKpqnrFXdlussfRPTpj5wgwws=
 github.com/DATA-DOG/go-sqlmock v1.3.3/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
-github.com/OrlovEvgeny/go-mcache v0.0.0-20200121124330-1a8195b34f3a h1:Cf4CrDeyrIcuIiJZEZJAH5dapqQ6J3OmP/vHPbDjaFA=
-github.com/OrlovEvgeny/go-mcache v0.0.0-20200121124330-1a8195b34f3a/go.mod h1:ig6eVXkYn/9dz0Vm8UdLf+E0u1bE6kBSn3n2hqk6jas=
 github.com/PuerkitoBio/rehttp v1.1.0 h1:JFZ7OeK+hbJpTxhNB0NDZT47AuXqCU0Smxfjtph7/Rs=
 github.com/PuerkitoBio/rehttp v1.1.0/go.mod h1:LUwKPoDbDIA2RL5wYZCNsQ90cx4OJ4AWBmq6KzWZL1s=
 github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6 h1:fLjPD/aNc3UIOA6tDi6QXUemppXK3P9BI7mr2hd6gx8=
@@ -543,7 +541,6 @@ github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9de
 github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/ziflex/lecho/v3 v3.5.0 h1:Z4TBr8SbUUnfaVc8tGJf1Jhu0G9Jxjl77lPW0riXKak=
-github.com/ziflex/lecho/v3 v3.5.0/go.mod h1:+eInrytYHxVPI6NQbua9xXGerB1x0ujj9jAV33yBIko=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
 go.opencensus.io v0.22.0/go.mod h1:+kGneAE2xo2IficOXnaByMWTGM9T73dGwxeWcUqIpI8=
 go.opencensus.io v0.22.2/go.mod h1:yxeiOL68Rb0Xd1ddK5vPZ/oVn4vY4Ynel7k9FzqtOIw=

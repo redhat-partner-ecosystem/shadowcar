@@ -3,7 +3,6 @@ module github.com/redhat-partner-ecosystem/shadowcar
 go 1.19
 
 require (
-	github.com/OrlovEvgeny/go-mcache v0.0.0-20200121124330-1a8195b34f3a
 	github.com/PuerkitoBio/rehttp v1.1.0
 	github.com/confluentinc/confluent-kafka-go v1.9.2
 	github.com/eclipse/paho.mqtt.golang v1.4.2
@@ -50,7 +49,6 @@ require (
 	github.com/tyler-smith/go-bip39 v1.0.1-0.20181017060643-dbb3b84ba2ef // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
-	github.com/ziflex/lecho/v3 v3.5.0 // indirect
 	golang.org/x/crypto v0.6.0 // indirect
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
