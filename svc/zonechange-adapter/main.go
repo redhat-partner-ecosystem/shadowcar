@@ -32,11 +32,10 @@ const (
 	GROUP_ID       = "group_id"
 	APPLICATION_ID = "application_id"
 
-	SOURCE_TOPIC = "source_topic"
-
 	KAFKA_SERVICE      = "kafka_service"
 	KAFKA_SERVICE_PORT = "kafka_service_port"
 	KAFKA_AUTO_OFFSET  = "auto_offset"
+	KAFKA_SOURCE_TOPIC = "source_topic"
 
 	DefaultTTL = time.Minute * 1
 
@@ -45,11 +44,11 @@ const (
 )
 
 var (
-	campaigns           []string          // list of known campaigns we care about
+	knownCampaigns      []string          // list of known campaigns we care about
 	nextCampaignMapping map[string]string // current campaign -> next campaign
 	campaignZoneMapping map[string]string
 
-	kc *kafka.Consumer
+	//kc *kafka.Consumer
 	cm *ota.CampaignManagerClient
 	dm *drogue.DrogueClient
 )
@@ -58,6 +57,55 @@ func init() {
 
 	// setup logging
 	internal.SetLogLevel()
+
+	// campaign manager client
+	_cm, err := ota.NewCampaignManagerClient(context.TODO())
+	if err != nil {
+		log.Fatal().Err(err).Msg(err.Error())
+	}
+	cm = _cm
+
+	// drogue client
+	dm, err = drogue.NewDrogueClient(context.TODO())
+	if err != nil {
+		log.Fatal().Err(err).Msg(err.Error())
+	}
+
+	// HACK
+	knownCampaigns = make([]string, 4)
+	knownCampaigns[0] = "aaaaaaaa-0000-0000-0000-000000000000" // Summit Adaptive Autosar Update A
+	knownCampaigns[1] = "bbbbbbbb-0000-0000-0000-000000000000" // Summit Adaptive Autosar Update B
+	knownCampaigns[2] = "00000000-0000-0000-0000-aaaaaaaaaaaa" // VECS Adaptive Autosar Update A
+	knownCampaigns[3] = "00000000-0000-0000-0000-bbbbbbbbbbbb" // VECS Adaptive Autosar Update B
+
+	nextCampaignMapping = make(map[string]string)
+	nextCampaignMapping["aaaaaaaa-0000-0000-0000-000000000000"] = "bbbbbbbb-0000-0000-0000-000000000000"
+	nextCampaignMapping["bbbbbbbb-0000-0000-0000-000000000000"] = "aaaaaaaa-0000-0000-0000-000000000000"
+	nextCampaignMapping["00000000-0000-0000-0000-aaaaaaaaaaaa"] = "00000000-0000-0000-0000-bbbbbbbbbbbb"
+	nextCampaignMapping["00000000-0000-0000-0000-bbbbbbbbbbbb"] = "00000000-0000-0000-0000-aaaaaaaaaaaa"
+
+	campaignZoneMapping = make(map[string]string)
+	campaignZoneMapping["aaaaaaaa-0000-0000-0000-000000000000"] = "luxoft"
+	campaignZoneMapping["bbbbbbbb-0000-0000-0000-000000000000"] = "redhat"
+	campaignZoneMapping["00000000-0000-0000-0000-aaaaaaaaaaaa"] = "luxoft"
+	campaignZoneMapping["00000000-0000-0000-0000-bbbbbbbbbbbb"] = "redhat"
+
+	// END HACK
+}
+
+func main() {
+	// sync Drogue and Campaign Manager
+	go refreshVehicleCampaignStatus()
+
+	// start the kafka event listener
+	go listenZoneChangeEvents()
+
+	// start the http listener
+	startHttpListener()
+
+}
+
+func listenZoneChangeEvents() {
 
 	// setup Kafka client
 	clientID := stdlib.GetString(CLIENT_ID, "kafka-listener-svc")
@@ -73,7 +121,7 @@ func init() {
 	kafkaServer := fmt.Sprintf("%s:%s", kafkaService, kafkaServicePort)
 
 	// https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
-	_kc, err := kafka.NewConsumer(&kafka.ConfigMap{
+	kc, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers":       kafkaServer,
 		"client.id":               clientID,
 		"group.id":                groupID,
@@ -84,68 +132,10 @@ func init() {
 	if err != nil {
 		log.Fatal().Err(err).Msg(err.Error())
 	}
-	kc = _kc
-
-	// campaign manager client
-	cm, err = ota.NewCampaignManagerClient(context.TODO())
-	if err != nil {
-		log.Fatal().Err(err).Msg(err.Error())
-	}
-
-	// drogue client
-	dm, err = drogue.NewDrogueClient(context.TODO())
-	if err != nil {
-		log.Fatal().Err(err).Msg(err.Error())
-	}
-
-	// HACK
-	campaigns = make([]string, 4)
-	campaigns[0] = "aaaaaaaa-0000-0000-0000-000000000000" // Summit Adaptive Autosar Update A
-	campaigns[1] = "bbbbbbbb-0000-0000-0000-000000000000" // Summit Adaptive Autosar Update B
-	campaigns[2] = "00000000-0000-0000-0000-aaaaaaaaaaaa" // VECS Adaptive Autosar Update A
-	campaigns[3] = "00000000-0000-0000-0000-bbbbbbbbbbbb" // VECS Adaptive Autosar Update B
-
-	nextCampaignMapping = make(map[string]string)
-	nextCampaignMapping["aaaaaaaa-0000-0000-0000-000000000000"] = "bbbbbbbb-0000-0000-0000-000000000000"
-	nextCampaignMapping["bbbbbbbb-0000-0000-0000-000000000000"] = "aaaaaaaa-0000-0000-0000-000000000000"
-	nextCampaignMapping["00000000-0000-0000-0000-aaaaaaaaaaaa"] = "00000000-0000-0000-0000-bbbbbbbbbbbb"
-	nextCampaignMapping["00000000-0000-0000-0000-bbbbbbbbbbbb"] = "00000000-0000-0000-0000-aaaaaaaaaaaa"
-
-	campaignZoneMapping = make(map[string]string)
-	campaignZoneMapping["aaaaaaaa-0000-0000-0000-000000000000"] = "luxoft"
-	campaignZoneMapping["bbbbbbbb-0000-0000-0000-000000000000"] = "redhat"
-	campaignZoneMapping["00000000-0000-0000-0000-aaaaaaaaaaaa"] = "luxoft"
-	campaignZoneMapping["00000000-0000-0000-0000-bbbbbbbbbbbb"] = "redhat"
-
-	// END HACK
-
-	// setup campaigns and other structs ...
-
-	go func() {
-		for {
-			refreshVehicleCampaignStatus()
-			time.Sleep(60 * time.Second) // refesh every 60 sec
-		}
-	}()
-
-}
-
-func main() {
-	// start the kafka event listener
-	go listenZoneChangeEvents()
-
-	// start the http listener
-	startListener()
-
-}
-
-func listenZoneChangeEvents() {
-
-	clientID := stdlib.GetString("client_id", "kafka-listener-svc")
-	sourceTopic := stdlib.GetString("source_topic", "")
 
 	// subscribe to the topic(s)
-	err := kc.SubscribeTopics(strings.Split(sourceTopic, ","), nil)
+	sourceTopic := stdlib.GetString(KAFKA_SOURCE_TOPIC, "")
+	err = kc.SubscribeTopics(strings.Split(sourceTopic, ","), nil)
 	if err != nil {
 		log.Fatal().Err(err).Msg(err.Error())
 	}
@@ -226,6 +216,13 @@ func lookupVehicle(vin string) *drogue.Device {
 }
 
 func refreshVehicleCampaignStatus() {
+	for {
+		updateCampaignStatus(knownCampaigns)
+		time.Sleep(60 * time.Second) // refesh every x sec
+	}
+}
+
+func updateCampaignStatus(campaigns []string) {
 	for _, campaignId := range campaigns {
 		status, exec := cm.GetCampaignExecution(campaignId)
 		if status == http.StatusOK {
@@ -253,7 +250,7 @@ func refreshVehicleCampaignStatus() {
 
 // http endpoint setup
 
-func startListener() {
+func startHttpListener() {
 	// create a new router instance
 	e := echo.New()
 	e.HideBanner = true
